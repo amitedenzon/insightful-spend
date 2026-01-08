@@ -37,13 +37,14 @@ const App = () => {
         if (fileObjects.length > 0) {
            const parsed = await parseMultipleCSVs(fileObjects);
            setTransactions(prev => {
-            const combined = [...prev, ...parsed];
+            const combined = [...parsed, ...prev];
             const seen = new Set<string>();
-            return combined.filter(t => {
+            const unique = combined.filter(t => {
               if (seen.has(t.id)) return false;
               seen.add(t.id);
               return true;
             });
+            return applyCategoryOverrides(unique);
           });
         }
       } catch (error) {
@@ -55,18 +56,51 @@ const App = () => {
 
 
 
+  // Helper to apply overrides from localStorage
+  const applyCategoryOverrides = (txs: Transaction[]) => {
+    try {
+      const saved = localStorage.getItem('category_overrides');
+      if (saved) {
+        const overrides = JSON.parse(saved);
+        return txs.map(t => overrides[t.id] ? { ...t, category: overrides[t.id] } : t);
+      }
+    } catch (e) {
+      console.error('Failed to load category overrides', e);
+    }
+    return txs;
+  };
+
+  const handleCategoryChange = useCallback((id: string, newCategory: string) => {
+    setTransactions(prev => {
+      const updated = prev.map(t => t.id === id ? { ...t, category: newCategory } : t);
+      
+      // Save to localStorage
+      try {
+        const saved = localStorage.getItem('category_overrides');
+        const overrides = saved ? JSON.parse(saved) : {};
+        overrides[id] = newCategory;
+        localStorage.setItem('category_overrides', JSON.stringify(overrides));
+      } catch (e) {
+        console.error('Failed to save category override', e);
+      }
+      
+      return updated;
+    });
+  }, []);
+
   const handleFilesSelected = useCallback(async (files: File[]) => {
     setIsLoading(true);
     try {
       const parsed = await parseMultipleCSVs(files);
       setTransactions(prev => {
-        const combined = [...prev, ...parsed];
+        const combined = [...parsed, ...prev];
         const seen = new Set<string>();
-        return combined.filter(t => {
+        const unique = combined.filter(t => {
           if (seen.has(t.id)) return false;
           seen.add(t.id);
           return true;
         });
+        return applyCategoryOverrides(unique);
       });
     } catch (error) {
       console.error('Error parsing CSV files:', error);
@@ -100,7 +134,7 @@ const App = () => {
                   />
                   <Route 
                     path="/monitor" 
-                    element={<Monitor transactions={transactions} />} 
+                    element={<Monitor transactions={transactions} onCategoryChange={handleCategoryChange} />} 
                   />
                   <Route path="/data" element={<DataManagement />} />
                   <Route path="*" element={<NotFound />} />

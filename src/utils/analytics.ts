@@ -193,3 +193,18 @@ export function getAvailableMonths(transactions: Transaction[], year: number): n
     .forEach(t => months.add(t.purchaseDate.getMonth()));
   return Array.from(months).sort((a, b) => a - b);
 }
+
+export function getCategoryBreakdown(transactions: Transaction[]): { name: string; value: number }[] {
+  const categoryMap = new Map<string, number>();
+
+  transactions.forEach(t => {
+    const category = t.category || 'אחר';
+    const current = categoryMap.get(category) || 0;
+    categoryMap.set(category, current + t.chargeAmount);
+  });
+
+  return Array.from(categoryMap.entries())
+    .map(([name, value]) => ({ name, value }))
+    .filter(item => item.value > 0)
+    .sort((a, b) => b.value - a.value);
+}

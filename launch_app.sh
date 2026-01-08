@@ -11,7 +11,11 @@ docker run -d \
   --name spender \
   -p 3001:3001 \
   -p 5173:5173 \
-  -v "$(pwd)/server/data:/app/server/data" \
+  -v "$(pwd)/src:/app/src" \
+  -v "$(pwd)/public:/app/public" \
+  -v "$(pwd)/server:/app/server" \
+  -v "$(pwd)/index.html:/app/index.html" \
+  -v "$(pwd)/vite.config.ts:/app/vite.config.ts" \
   spender
 
 echo "Waiting for dev server to start..."

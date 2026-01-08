@@ -14,6 +14,8 @@ import { StandingOrdersList } from './StandingOrdersList';
 import { RecurrentPayments } from './RecurrentPayments';
 import { TopMerchants } from './TopMerchants';
 import { InstallmentsList } from './InstallmentsList';
+import { CategoryPieChart } from './charts/CategoryPieChart';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   calculateTotalSpending,
   calculateDailyAverage,
@@ -28,10 +30,12 @@ import {
   filterTransactionsByPeriod,
   getAvailableYears,
   getAvailableMonths,
+  getCategoryBreakdown,
 } from '@/utils/analytics';
 
 interface DashboardProps {
   transactions: Transaction[];
+  onCategoryChange: (id: string, newCategory: string) => void;
 }
 
 const HEBREW_MONTHS = [
@@ -39,7 +43,7 @@ const HEBREW_MONTHS = [
   'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'
 ];
 
-export function Dashboard({ transactions }: DashboardProps) {
+export function Dashboard({ transactions, onCategoryChange }: DashboardProps) {
   const availableYears = useMemo(() => getAvailableYears(transactions), [transactions]);
   const [selectedYear, setSelectedYear] = useState(availableYears[0] || new Date().getFullYear());
   
@@ -49,6 +53,7 @@ export function Dashboard({ transactions }: DashboardProps) {
   );
   const [selectedMonth, setSelectedMonth] = useState(availableMonths[availableMonths.length - 1] ?? 0);
   const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const [pieMode, setPieMode] = useState<'time' | 'category'>('time');
 
   // Filtered transactions based on view mode
   const filteredTransactions = useMemo(() => 
@@ -115,13 +120,18 @@ export function Dashboard({ transactions }: DashboardProps) {
     [transactions, selectedYear]
   );
 
+  const categoryData = useMemo(() => 
+    getCategoryBreakdown(filteredTransactions),
+    [filteredTransactions]
+  );
+
   const recurrentPayments = useMemo(() => 
     findRecurrentPayments(transactions),
     [transactions]
   );
 
   const topMerchants = useMemo(() => 
-    getTopMerchants(filteredTransactions, 5),
+    getTopMerchants(filteredTransactions, 6),
     [filteredTransactions]
   );
 
@@ -134,7 +144,7 @@ export function Dashboard({ transactions }: DashboardProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">דשבורד פיננסי</h1>
+          <h1 className="text-3xl font-bold text-foreground">מעקב הוצאות</h1>
           <p className="text-muted-foreground mt-1">{periodLabel}</p>
         </div>
         <div className="flex items-center gap-4">
@@ -182,7 +192,7 @@ export function Dashboard({ transactions }: DashboardProps) {
         {/* Top Merchants (25%) */}
         <ChartCard 
           title="בתי עסק מובילים" 
-          subtitle="5 בתי העסק עם ההוצאות הגבוהות ביותר"
+          subtitle="6 בתי העסק עם ההוצאות הגבוהות ביותר"
           delay={200}
           className="lg:col-span-3"
         >
@@ -191,14 +201,26 @@ export function Dashboard({ transactions }: DashboardProps) {
 
         {viewMode === 'month' ? (
           <>
-            {/* Weekly Pie (25%) */}
+            {/* Pie Chart (25%) with Toggle */}
             <ChartCard 
-              title="התפלגות שבועית" 
-              subtitle="הוצאות לפי שבוע בחודש"
+              title={pieMode === 'time' ? "התפלגות שבועית" : "התפלגות לפי קטגוריה"}
+              subtitle={pieMode === 'time' ? "הוצאות לפי שבוע בחודש" : "הוצאות לפי סוג"}
               delay={250}
               className="lg:col-span-3"
+              action={
+                <Tabs value={pieMode} onValueChange={(v) => setPieMode(v as 'time' | 'category')} className="w-[100px]">
+                  <TabsList className="grid w-full grid-cols-2 h-8">
+                    <TabsTrigger value="time" className="text-xs px-1">זמן</TabsTrigger>
+                    <TabsTrigger value="category" className="text-xs px-1">סוג</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              }
             >
-              <WeeklyPieChart data={weeklyData} />
+              {pieMode === 'time' ? (
+                <WeeklyPieChart data={weeklyData} />
+              ) : (
+                <CategoryPieChart data={categoryData} />
+              )}
             </ChartCard>
             
             {/* Daily Bar (50%) */}
@@ -213,23 +235,35 @@ export function Dashboard({ transactions }: DashboardProps) {
           </>
         ) : (
           <>
-            {/* Monthly Pie (25%) */}
+            {/* Pie Chart (25%) with Toggle */}
             <ChartCard 
-              title="התפלגות חודשית" 
-              subtitle="הוצאות לפי חודש (לחץ למעבר)"
+              title={pieMode === 'time' ? "התפלגות חודשית" : "התפלגות לפי קטגוריה"}
+              subtitle={pieMode === 'time' ? "הוצאות לפי חודש (לחץ למעבר)" : "הוצאות לפי סוג"}
               delay={250}
               className="lg:col-span-3"
+              action={
+                <Tabs value={pieMode} onValueChange={(v) => setPieMode(v as 'time' | 'category')} className="w-[100px]">
+                  <TabsList className="grid w-full grid-cols-2 h-8">
+                    <TabsTrigger value="time" className="text-xs px-1">זמן</TabsTrigger>
+                    <TabsTrigger value="category" className="text-xs px-1">סוג</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              }
             >
-              <MonthlyPieChart 
-                data={monthlyData} 
-                onMonthClick={(monthName) => {
-                  const monthIndex = HEBREW_MONTHS.indexOf(monthName);
-                  if (monthIndex !== -1) {
-                    setSelectedMonth(monthIndex);
-                    setViewMode('month');
-                  }
-                }}
-              />
+              {pieMode === 'time' ? (
+                <MonthlyPieChart 
+                  data={monthlyData} 
+                  onMonthClick={(monthName) => {
+                    const monthIndex = HEBREW_MONTHS.indexOf(monthName);
+                    if (monthIndex !== -1) {
+                      setSelectedMonth(monthIndex);
+                      setViewMode('month');
+                    }
+                  }}
+                />
+              ) : (
+                <CategoryPieChart data={categoryData} />
+              )}
             </ChartCard>
 
             {/* Trend Line (50%) */}
@@ -276,7 +310,7 @@ export function Dashboard({ transactions }: DashboardProps) {
       </div>
 
       {/* Transaction Table */}
-      <TransactionTable transactions={filteredTransactions} />
+      <TransactionTable transactions={filteredTransactions} onCategoryChange={onCategoryChange} />
     </div>
   );
 }

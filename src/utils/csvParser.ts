@@ -1,4 +1,5 @@
 import { Transaction } from '@/types/transaction';
+import { categorizeMerchant } from './categories';
 
 const HEADER_ROWS_TO_SKIP = 0; // We will scan automatically now
 
@@ -70,15 +71,26 @@ export function parseCSV(csvContent: string): Transaction[] {
         }
     }
 
+
+    // Clean up "Standing Order" text from additional info to avoid duplication
+    let cleanedInfo = additionalInfo?.trim() || '';
+    if (isStandingOrder) {
+      cleanedInfo = cleanedInfo.replace(/הוראת קבע/g, '').trim();
+    }
+
+    const category = categorizeMerchant(merchantName, cleanedInfo);
+    console.log(`Row ${i}: Merchant="${merchantName}", Info="${cleanedInfo}" -> Category="${category}"`);
+
     const transaction: Transaction = {
       id: `${purchaseDate.toISOString()}-${merchantName}-${chargeAmount}-${i}`,
       purchaseDate,
       merchantName: merchantName?.trim() || 'לא ידוע',
       chargeAmount,
       currency: currency?.trim() || '₪',
-      additionalInfo: additionalInfo?.trim() || '',
+      additionalInfo: cleanedInfo,
       isStandingOrder: isStandingOrder,
       installments,
+      category,
     };
 
     transactions.push(transaction);

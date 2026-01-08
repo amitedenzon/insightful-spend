@@ -6,9 +6,10 @@ import { useNavigate } from 'react-router-dom';
 
 interface MonitorProps {
   transactions: Transaction[];
+  onCategoryChange: (id: string, newCategory: string) => void;
 }
 
-const Monitor = ({ transactions }: MonitorProps) => {
+const Monitor = ({ transactions, onCategoryChange }: MonitorProps) => {
   const navigate = useNavigate();
 
   if (transactions.length === 0) {
@@ -29,7 +30,7 @@ const Monitor = ({ transactions }: MonitorProps) => {
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-8">
-        <Dashboard transactions={transactions} />
+        <Dashboard transactions={transactions} onCategoryChange={onCategoryChange} />
       </main>
     </div>
   );
