@@ -1,17 +1,15 @@
 import { Transaction } from '@/types/transaction';
 
-const HEADER_ROWS_TO_SKIP = 9;
+const HEADER_ROWS_TO_SKIP = 0; // We will scan automatically now
 
 export function parseCSV(csvContent: string): Transaction[] {
-  const lines = csvContent.split('\n');
+  // Use the robust parser to get all rows respecting quoted newlines
+  const rows = parseWholeCSV(csvContent);
   const transactions: Transaction[] = [];
 
-  // Skip header metadata rows
-  const dataLines = lines.slice(HEADER_ROWS_TO_SKIP);
-
-  // Find the header row
-  const headerRowIndex = dataLines.findIndex(line => 
-    line.includes('תאריך רכישה') || line.includes('שם בית עסק')
+  // Find the header row index in the PARSED rows
+  const headerRowIndex = rows.findIndex(row => 
+    row.some(col => col.includes('תאריך רכישה') || col.includes('שם בית עסק'))
   );
 
   if (headerRowIndex === -1) {
@@ -19,21 +17,20 @@ export function parseCSV(csvContent: string): Transaction[] {
   }
 
   const startIndex = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
+  // We can still use the raw content lines for the quick header date extraction as that's usually at the top
+  const statementDate = extractStatementDate(csvContent.split('\n'));
 
-  // Determine statement date from header if possible
-  const statementDate = extractStatementDate(lines);
-
-  for (let i = startIndex; i < dataLines.length; i++) {
-    const line = dataLines[i].trim();
-    if (!line) continue;
-
-    const columns = parseCSVLine(line);
+  for (let i = startIndex; i < rows.length; i++) {
+    const columns = rows[i];
     if (columns.length < 4) continue;
 
     const [dateStr, merchantName, , , chargeAmountStr, currency, , , additionalInfo] = columns;
 
     // Check for "Standing Order" (הוראת קבע) in ANY column to be safe
-    const isStandingOrder = columns.some(col => col && col.includes('הוראת קבע'));
+    // We explicitly convert to string and use includes to catch cases like "אתר חו"ל הוראת קבע"
+    const isStandingOrder = columns.some(col => 
+      col && String(col).includes('הוראת קבע')
+    );
 
     // Skip if no valid date
     if (!dateStr || !dateStr.match(/\d{2}\.\d{2}\.\d{2}/)) continue;
@@ -48,14 +45,8 @@ export function parseCSV(csvContent: string): Transaction[] {
     // If it's an installment transaction
     if (installments) {
         if (statementDate) {
-            // Priority 1: Use Statement Date from Header
             purchaseDate = statementDate;
         } else {
-            // Priority 2: Fallback to Calculation
-            // If we couldn't find the date in the header, calculate the likely payment date
-            // based on the installment number.
-            // e.g. Purchase Date: Jan 1st
-            // Payment 3 of 12 -> Jan + 2 months = March
             const d = new Date(purchaseDate);
             d.setMonth(d.getMonth() + installments.current - 1);
             purchaseDate = d;
@@ -63,7 +54,7 @@ export function parseCSV(csvContent: string): Transaction[] {
     }
 
     const transaction: Transaction = {
-      id: `${purchaseDate.toISOString()}-${merchantName}-${chargeAmount}-${i}`, // Update ID to reflect new date
+      id: `${purchaseDate.toISOString()}-${merchantName}-${chargeAmount}-${i}`,
       purchaseDate,
       merchantName: merchantName?.trim() || 'לא ידוע',
       chargeAmount,
@@ -79,26 +70,52 @@ export function parseCSV(csvContent: string): Transaction[] {
   return transactions;
 }
 
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
+// Robust State-Machine CSV Parser
+function parseWholeCSV(content: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = '';
   let inQuotes = false;
+  
+  // Normalize CRLF to LF to simplify logic
+  const text = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
     if (char === '"') {
-      inQuotes = !inQuotes;
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote ("") -> add a single quote and skip next
+        currentCell += '"';
+        i++; 
+      } else {
+        // Toggle state
+        inQuotes = !inQuotes;
+      }
     } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
+      // End of cell
+      currentRow.push(currentCell.trim()); // Trim whitespace around cell values? Usually safe.
+      currentCell = '';
+    } else if (char === '\n' && !inQuotes) {
+      // End of row
+      currentRow.push(currentCell.trim());
+      rows.push(currentRow);
+      currentRow = [];
+      currentCell = '';
     } else {
-      current += char;
+      // Regular character
+      currentCell += char;
     }
   }
-  
-  result.push(current.trim());
-  return result;
+
+  // Push last cell/row if exists
+  if (currentCell || currentRow.length > 0) {
+    currentRow.push(currentCell.trim());
+    rows.push(currentRow);
+  }
+
+  return rows;
 }
 
 function parseHebrewDate(dateStr: string): Date {

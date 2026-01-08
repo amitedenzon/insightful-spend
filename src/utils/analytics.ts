@@ -101,9 +101,9 @@ export function getMonthlyTrend(transactions: Transaction[], year: number): { mo
 }
 
 export function findRecurrentPayments(transactions: Transaction[]): RecurrentPayment[] {
-  const merchantMonthlyData = new Map<string, Map<string, number[]>>();
+  const merchantMonthlyData = new Map<string, Map<string, number>>();
 
-  // Group transactions by merchant and month
+  // Group transactions by merchant and month, SUMMING amounts
   transactions.forEach(t => {
     const monthKey = `${t.purchaseDate.getFullYear()}-${t.purchaseDate.getMonth() + 1}`;
     
@@ -112,28 +112,27 @@ export function findRecurrentPayments(transactions: Transaction[]): RecurrentPay
     }
     
     const monthMap = merchantMonthlyData.get(t.merchantName)!;
-    if (!monthMap.has(monthKey)) {
-      monthMap.set(monthKey, []);
-    }
-    monthMap.get(monthKey)!.push(t.chargeAmount);
+    const currentSum = monthMap.get(monthKey) || 0;
+    monthMap.set(monthKey, currentSum + t.chargeAmount);
   });
 
   const recurrentPayments: RecurrentPayment[] = [];
 
   merchantMonthlyData.forEach((monthMap, merchantName) => {
+    // Check if we have data for at least 3 distinct months
     if (monthMap.size >= 3) {
       const amounts: number[] = [];
       const months: string[] = [];
 
-      monthMap.forEach((monthAmounts, monthKey) => {
-        // Take the most common amount for the month
-        const avgAmount = monthAmounts.reduce((a, b) => a + b, 0) / monthAmounts.length;
-        amounts.push(avgAmount);
+      monthMap.forEach((monthlyTotal, monthKey) => {
+        amounts.push(monthlyTotal);
         months.push(monthKey);
       });
 
-      // Check if amounts are similar (within 20% of average)
+      // Calculate average of the MONTHLY TOTALS
       const avgAmount = amounts.reduce((a, b) => a + b, 0) / amounts.length;
+      
+      // Check if monthly totals are similar (within 20% of average)
       const isSimilar = amounts.every(a => Math.abs(a - avgAmount) / avgAmount < 0.2);
 
       if (isSimilar) {
