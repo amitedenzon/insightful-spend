@@ -10,6 +10,7 @@ export interface Transaction {
     current: number;
     total: number;
   };
+  category: string;
 }
 
 export interface MonthlyData {

@@ -152,7 +152,7 @@ export function Dashboard({ transactions }: DashboardProps) {
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <MetricCard
           title="סה״כ הוצאות"
           value={totalSpending}
@@ -175,41 +175,50 @@ export function Dashboard({ transactions }: DashboardProps) {
           variant="savings"
           delay={100}
         />
-        <MetricCard
-          title="בית עסק מוביל"
-          value={topMerchant?.name || 'אין נתונים'}
-          subtitle={topMerchant ? topMerchant.total.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' }) : undefined}
-          icon={<Store className="h-6 w-6" />}
-          variant="default"
-          delay={150}
-        />
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Main Charts & Top Merchants Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Top Merchants (25%) */}
+        <ChartCard 
+          title="בתי עסק מובילים" 
+          subtitle="5 בתי העסק עם ההוצאות הגבוהות ביותר"
+          delay={200}
+          className="lg:col-span-3"
+        >
+          <TopMerchants merchants={topMerchants} />
+        </ChartCard>
+
         {viewMode === 'month' ? (
           <>
+            {/* Weekly Pie (25%) */}
             <ChartCard 
               title="התפלגות שבועית" 
               subtitle="הוצאות לפי שבוע בחודש"
-              delay={200}
+              delay={250}
+              className="lg:col-span-3"
             >
               <WeeklyPieChart data={weeklyData} />
             </ChartCard>
+            
+            {/* Daily Bar (50%) */}
             <ChartCard 
               title="הוצאות יומיות" 
               subtitle="פעילות יומית לאורך החודש"
-              delay={250}
+              delay={300}
+              className="lg:col-span-6"
             >
               <DailyBarChart data={dailyData} />
             </ChartCard>
           </>
         ) : (
           <>
+            {/* Monthly Pie (25%) */}
             <ChartCard 
               title="התפלגות חודשית" 
               subtitle="הוצאות לפי חודש (לחץ למעבר)"
-              delay={200}
+              delay={250}
+              className="lg:col-span-3"
             >
               <MonthlyPieChart 
                 data={monthlyData} 
@@ -222,10 +231,13 @@ export function Dashboard({ transactions }: DashboardProps) {
                 }}
               />
             </ChartCard>
+
+            {/* Trend Line (50%) */}
             <ChartCard 
               title="מגמת הוצאות" 
               subtitle="התפתחות ההוצאות לאורך השנה"
-              delay={250}
+              delay={300}
+              className="lg:col-span-6"
             >
               <TrendLineChart data={trendData} />
             </ChartCard>
@@ -233,17 +245,8 @@ export function Dashboard({ transactions }: DashboardProps) {
         )}
       </div>
 
-      {/* Bottom Section */}
-      {/* Bottom Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <ChartCard 
-          title="בתי עסק מובילים" 
-          subtitle="5 בתי העסק עם ההוצאות הגבוהות ביותר"
-          delay={300}
-        >
-          <TopMerchants merchants={topMerchants} />
-        </ChartCard>
-        
+      {/* Bottom Section: 3 Columns Equal Width */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <ChartCard 
           title="הוראות קבע" 
           subtitle="תשלומים קבועים שזוהו"

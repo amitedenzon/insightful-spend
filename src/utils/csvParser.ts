@@ -16,15 +16,32 @@ export function parseCSV(csvContent: string): Transaction[] {
     console.warn('Header row not found, attempting to parse from first data row');
   }
 
+  // Create a map of column name to index
+  const headerRow = rows[headerRowIndex];
+  const colMap = new Map<string, number>();
+  headerRow.forEach((col, idx) => colMap.set(col.trim(), idx));
+
+  // indices
+  const idxDate = colMap.has('תאריך רכישה') ? colMap.get('תאריך רכישה')! : 0;
+  const idxMerchant = colMap.has('שם בית עסק') ? colMap.get('שם בית עסק')! : 1;
+  const idxCharge = colMap.has('סכום חיוב') ? colMap.get('סכום חיוב')! : 4;
+  const idxCurrency = colMap.has('מטבע חיוב') ? colMap.get('מטבע חיוב')! : 5;
+  const idxInfo = colMap.has('פירוט נוסף') ? colMap.get('פירוט נוסף')! : 8;
+
   const startIndex = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
   // We can still use the raw content lines for the quick header date extraction as that's usually at the top
   const statementDate = extractStatementDate(csvContent.split('\n'));
 
   for (let i = startIndex; i < rows.length; i++) {
     const columns = rows[i];
-    if (columns.length < 4) continue;
+    // Relaxed length check, we just need enough valid columns
+    if (columns.length < 2) continue;
 
-    const [dateStr, merchantName, , , chargeAmountStr, currency, , , additionalInfo] = columns;
+    const dateStr = columns[idxDate];
+    const merchantName = columns[idxMerchant];
+    const chargeAmountStr = columns[idxCharge];
+    const currency = columns[idxCurrency];
+    const additionalInfo = columns[idxInfo];
 
     // Check for "Standing Order" (הוראת קבע) in ANY column to be safe
     // We explicitly convert to string and use includes to catch cases like "אתר חו"ל הוראת קבע"

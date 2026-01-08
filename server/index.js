@@ -93,6 +93,19 @@ app.delete('/api/files/:filename', (req, res) => {
     res.status(500).json({ error: 'Failed to delete file' });
   }
 });
+// Serve static files from the React app (for production/docker)
+const distPath = path.join(__dirname, '../dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  
+  // Handle SPA routing - return index.html for all non-API routes
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api')) {
+      return res.status(404).json({ error: 'Not Found' });
+    }
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
