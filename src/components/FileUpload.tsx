@@ -2,6 +2,16 @@ import { useCallback } from 'react';
 import { Upload, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useState } from 'react';
 
 interface FileUploadProps {
   onFilesSelected: (files: File[]) => void;
@@ -9,23 +19,66 @@ interface FileUploadProps {
 }
 
 export function FileUpload({ onFilesSelected, isLoading }: FileUploadProps) {
+  const [successCount, setSuccessCount] = useState<number | null>(null);
+
+  const handleClose = useCallback(() => {
+    setSuccessCount(null);
+  }, []);
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault();
       const files = Array.from(e.dataTransfer.files).filter(
         f => f.name.endsWith('.csv')
       );
-      if (files.length) onFilesSelected(files);
+      
+      if (files.length) {
+        // Upload to backend
+        const formData = new FormData();
+        files.forEach(file => formData.append('files', file));
+        
+        try {
+          await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          });
+          setSuccessCount(files.length); // Show success popup
+          onFilesSelected(files);
+        } catch (error) {
+          console.error('Upload failed:', error);
+          // Still process locally even if upload fails? 
+          // For now, let's assume we want to process locally too to update UI immediately
+          // Maybe we don't show success popup if it "failed" technically, or maybe we do if local parsing works.
+          // Let's assume we only show popup if backend upload works.
+          onFilesSelected(files); 
+        }
+      }
     },
     [onFilesSelected]
   );
 
   const handleFileInput = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(e.target.files || []).filter(
         f => f.name.endsWith('.csv')
       );
-      if (files.length) onFilesSelected(files);
+      
+      if (files.length) {
+         // Upload to backend
+        const formData = new FormData();
+        files.forEach(file => formData.append('files', file));
+        
+        try {
+          await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          });
+          setSuccessCount(files.length); // Show success popup
+          onFilesSelected(files);
+        } catch (error) {
+           console.error('Upload failed:', error);
+           onFilesSelected(files);
+        }
+      }
     },
     [onFilesSelected]
   );
@@ -75,6 +128,20 @@ export function FileUpload({ onFilesSelected, isLoading }: FileUploadProps) {
           בחר קבצים
         </Button>
       </div>
+
+      <AlertDialog open={successCount !== null} onOpenChange={handleClose}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-center">העלאה הושלמה בהצלחה</AlertDialogTitle>
+            <AlertDialogDescription className="text-center">
+              {successCount} קבצים הועלו ונשמרו בהצלחה במערכת.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:justify-center">
+            <AlertDialogAction onClick={handleClose}>אישור</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

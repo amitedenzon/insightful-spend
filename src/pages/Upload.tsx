@@ -16,10 +16,14 @@ const Upload = ({ onFilesSelected, isLoading, transactionCount }: UploadProps) =
           {/* Logo & Title */}
           <div className="text-center space-y-4">
             <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-primary to-chart-5 flex items-center justify-center shadow-glass-lg">
-              <CreditCard className="h-10 w-10 text-primary-foreground" />
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-primary-foreground">
+                  <path d="M6 18V6h4v12" />
+                  <path d="M18 6v12h-4V6" />
+                  <path d="M6 18h12" />
+               </svg>
             </div>
             <h1 className="text-4xl sm:text-5xl font-bold text-foreground">
-              Finance<span className="gradient-text">View</span>
+              בזבזני
             </h1>
             <p className="text-xl text-muted-foreground max-w-md mx-auto">
               נתח את ההוצאות שלך בצורה חכמה ויזואלית

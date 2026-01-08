@@ -2,6 +2,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recha
 
 interface MonthlyPieChartProps {
   data: { month: string; amount: number }[];
+  onMonthClick?: (monthName: string) => void;
 }
 
 const COLORS = [
@@ -19,7 +20,7 @@ const COLORS = [
   'hsl(200, 60%, 65%)',
 ];
 
-export function MonthlyPieChart({ data }: MonthlyPieChartProps) {
+export function MonthlyPieChart({ data, onMonthClick }: MonthlyPieChartProps) {
   const filteredData = data.filter(d => d.amount > 0);
   const total = filteredData.reduce((sum, d) => sum + d.amount, 0);
 
@@ -45,6 +46,8 @@ export function MonthlyPieChart({ data }: MonthlyPieChartProps) {
             dataKey="amount"
             nameKey="month"
             strokeWidth={0}
+            onClick={(data) => onMonthClick?.(data.month)}
+            className="cursor-pointer"
           >
             {filteredData.map((entry, index) => (
               <Cell 
@@ -61,10 +64,11 @@ export function MonthlyPieChart({ data }: MonthlyPieChartProps) {
               borderRadius: '12px',
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
               direction: 'rtl',
+              color: 'hsl(var(--foreground))',
             }}
-            formatter={(value: number) => [
+            formatter={(value: number, name: string) => [
               value.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' }),
-              'סכום'
+              name
             ]}
           />
           <Legend 

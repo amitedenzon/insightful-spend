@@ -207,10 +207,19 @@ export function Dashboard({ transactions }: DashboardProps) {
           <>
             <ChartCard 
               title="התפלגות חודשית" 
-              subtitle="הוצאות לפי חודש"
+              subtitle="הוצאות לפי חודש (לחץ למעבר)"
               delay={200}
             >
-              <MonthlyPieChart data={monthlyData} />
+              <MonthlyPieChart 
+                data={monthlyData} 
+                onMonthClick={(monthName) => {
+                  const monthIndex = HEBREW_MONTHS.indexOf(monthName);
+                  if (monthIndex !== -1) {
+                    setSelectedMonth(monthIndex);
+                    setViewMode('month');
+                  }
+                }}
+              />
             </ChartCard>
             <ChartCard 
               title="מגמת הוצאות" 

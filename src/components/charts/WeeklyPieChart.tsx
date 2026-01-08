@@ -57,6 +57,7 @@ export function WeeklyPieChart({ data }: WeeklyPieChartProps) {
               borderRadius: '12px',
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
               direction: 'rtl',
+              color: 'hsl(var(--foreground))',
             }}
             formatter={(value: number) => [
               value.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' }),

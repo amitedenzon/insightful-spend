@@ -45,6 +45,10 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
     });
   }, [transactions, search, sortField, sortDirection]);
 
+  const filteredTotal = useMemo(() => {
+    return filteredAndSorted.reduce((sum, t) => sum + t.chargeAmount, 0);
+  }, [filteredAndSorted]);
+
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
@@ -75,8 +79,16 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
               className="pr-10 bg-background"
             />
           </div>
-          <Badge variant="secondary" className="whitespace-nowrap">
-            {filteredAndSorted.length} עסקאות
+          <Badge variant="secondary" className="whitespace-nowrap flex gap-2">
+            <span>{filteredAndSorted.length} עסקאות</span>
+            {search.trim() && (
+              <>
+                <span className="opacity-50">|</span>
+                <span className="text-primary font-bold">
+                  {filteredTotal.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}
+                </span>
+              </>
+            )}
           </Badge>
         </div>
       </div>
