@@ -185,7 +185,7 @@ export function Dashboard({ transactions, onCategoryChange }: DashboardProps) {
         </div>
         <div className="flex items-center gap-4 flex-wrap">
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-             <SelectTrigger className="w-[140px] bg-background">
+             <SelectTrigger className="w-[220px] bg-background">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <SelectValue placeholder="סינון סוג" />
