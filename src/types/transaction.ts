@@ -6,6 +6,10 @@ export interface Transaction {
   currency: string;
   additionalInfo: string;
   isStandingOrder: boolean;
+  installments?: {
+    current: number;
+    total: number;
+  };
 }
 
 export interface MonthlyData {

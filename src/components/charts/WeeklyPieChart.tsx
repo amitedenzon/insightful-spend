@@ -59,6 +59,8 @@ export function WeeklyPieChart({ data }: WeeklyPieChartProps) {
               direction: 'rtl',
               color: 'hsl(var(--foreground))',
             }}
+            itemStyle={{ color: 'hsl(var(--foreground))' }}
+            labelStyle={{ color: 'hsl(var(--foreground))' }}
             formatter={(value: number) => [
               value.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' }),
               'סכום'

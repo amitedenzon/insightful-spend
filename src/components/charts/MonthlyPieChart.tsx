@@ -66,6 +66,8 @@ export function MonthlyPieChart({ data, onMonthClick }: MonthlyPieChartProps) {
               direction: 'rtl',
               color: 'hsl(var(--foreground))',
             }}
+            itemStyle={{ color: 'hsl(var(--foreground))' }}
+            labelStyle={{ color: 'hsl(var(--foreground))' }}
             formatter={(value: number, name: string) => [
               value.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' }),
               name

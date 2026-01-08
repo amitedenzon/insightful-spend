@@ -13,6 +13,7 @@ import { TransactionTable } from './TransactionTable';
 import { StandingOrdersList } from './StandingOrdersList';
 import { RecurrentPayments } from './RecurrentPayments';
 import { TopMerchants } from './TopMerchants';
+import { InstallmentsList } from './InstallmentsList';
 import {
   calculateTotalSpending,
   calculateDailyAverage,
@@ -233,7 +234,8 @@ export function Dashboard({ transactions }: DashboardProps) {
       </div>
 
       {/* Bottom Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Bottom Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <ChartCard 
           title="בתי עסק מובילים" 
           subtitle="5 בתי העסק עם ההוצאות הגבוהות ביותר"
@@ -256,6 +258,17 @@ export function Dashboard({ transactions }: DashboardProps) {
           delay={400}
         >
           <RecurrentPayments payments={recurrentPayments} />
+        </ChartCard>
+
+        <ChartCard
+          title="פריסת תשלומים"
+          subtitle="מעקב אחרי עסקאות בתשלומים"
+          delay={450}
+        >
+          <InstallmentsList 
+            transactions={filteredTransactions} 
+            isYearlyView={viewMode !== 'month'}
+          />
         </ChartCard>
       </div>
 
