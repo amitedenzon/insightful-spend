@@ -17,6 +17,15 @@ import { InstallmentsList } from './InstallmentsList';
 import { CategoryPieChart } from './charts/CategoryPieChart';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CATEGORIES } from '@/utils/categories';
+import { Filter } from 'lucide-react';
+import {
   calculateTotalSpending,
   calculateDailyAverage,
   calculateStandingOrdersTotal,
@@ -54,16 +63,22 @@ export function Dashboard({ transactions, onCategoryChange }: DashboardProps) {
   const [selectedMonth, setSelectedMonth] = useState(availableMonths[availableMonths.length - 1] ?? 0);
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [pieMode, setPieMode] = useState<'time' | 'category'>('time');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  // Filtered transactions based on view mode
-  const filteredTransactions = useMemo(() => 
-    filterTransactionsByPeriod(
+  // Filtered transactions based on view mode and category
+  const filteredTransactions = useMemo(() => {
+    let filtered = filterTransactionsByPeriod(
       transactions, 
       viewMode === 'month' ? selectedMonth : null, 
       selectedYear
-    ),
-    [transactions, viewMode, selectedMonth, selectedYear]
-  );
+    );
+
+    if (selectedCategory && selectedCategory !== 'all') {
+      filtered = filtered.filter(t => t.category === selectedCategory);
+    }
+
+    return filtered;
+  }, [transactions, viewMode, selectedMonth, selectedYear, selectedCategory]);
 
   // Calculate metrics
   const totalSpending = useMemo(() => 
@@ -125,6 +140,27 @@ export function Dashboard({ transactions, onCategoryChange }: DashboardProps) {
     [filteredTransactions]
   );
 
+  // Identify categories present in the current period for the pie chart
+  // Note: For the pie chart, when a category is selected, we naturally only see that one slice.
+  // To allow changing selection via chart, it might be better to show ALL categories in the chart
+  // even when filtered? No, usually filtering drill-down hides others.
+  // BUT the user asked: "when a certain category is being pressed in the pie chart it shows the same page but only with expenses that are from that category"
+  // If we filter filteredTransactions, the chart will redraw with only 1 slice (100%).
+  // This is expected behavior for "filtering".
+  // To allow navigating BACK, they use the dropdown or click again? 
+  // Standard is showing 100% slice.
+  
+  // However, we need to pass unfiltered data to the category chart IF we want to see the distribution
+  // while filtered? No, the user wants "everything" to filter.
+  // So yes, chart becomes 1 big slice. To switch to another category, they must use the dropdown 
+  // or maybe we provide a "Clear Filter" button.
+  
+  // Wait, if I filter by "Food", the `filteredTransactions` contains only Food. 
+  // `getCategoryBreakdown` will return `[{name: 'Food', value: X}]`.
+  // The chart will show one big circle for Food.
+  // If they want to click another category, they can't via the chart because others are gone.
+  // This is fine. They can use the dropdown to reset.
+
   const recurrentPayments = useMemo(() => 
     findRecurrentPayments(transactions),
     [transactions]
@@ -147,7 +183,24 @@ export function Dashboard({ transactions, onCategoryChange }: DashboardProps) {
           <h1 className="text-3xl font-bold text-foreground">מעקב הוצאות</h1>
           <p className="text-muted-foreground mt-1">{periodLabel}</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+             <SelectTrigger className="w-[140px] bg-background">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <SelectValue placeholder="סינון סוג" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">כל העסקאות</SelectItem>
+              {Object.values(CATEGORIES).map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {cat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <PeriodSelector
             viewMode={viewMode}
             selectedYear={selectedYear}
@@ -219,7 +272,10 @@ export function Dashboard({ transactions, onCategoryChange }: DashboardProps) {
               {pieMode === 'time' ? (
                 <WeeklyPieChart data={weeklyData} />
               ) : (
-                <CategoryPieChart data={categoryData} />
+                <CategoryPieChart 
+                  data={selectedCategory === 'all' ? categoryData : categoryData} // Still pass data, logic handles display
+                  onCategoryClick={(category) => setSelectedCategory(category)}
+                />
               )}
             </ChartCard>
             
@@ -262,7 +318,10 @@ export function Dashboard({ transactions, onCategoryChange }: DashboardProps) {
                   }}
                 />
               ) : (
-                <CategoryPieChart data={categoryData} />
+                <CategoryPieChart 
+                  data={categoryData}
+                  onCategoryClick={(category) => setSelectedCategory(category)}
+                />
               )}
             </ChartCard>
 

@@ -2,6 +2,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recha
 
 interface CategoryPieChartProps {
   data: { name: string; value: number }[];
+  onCategoryClick?: (category: string) => void;
 }
 
 const COLORS = [
@@ -19,7 +20,7 @@ const COLORS = [
   'hsl(180, 70%, 45%)', // Teal
 ];
 
-export function CategoryPieChart({ data }: CategoryPieChartProps) {
+export function CategoryPieChart({ data, onCategoryClick }: CategoryPieChartProps) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
 
   if (total === 0) {
@@ -44,6 +45,8 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
             dataKey="value"
             nameKey="name"
             strokeWidth={0}
+            onClick={(d) => onCategoryClick?.(d.name)}
+            className="cursor-pointer"
           >
             {data.map((_, index) => (
               <Cell 
