@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 
 csv
+
+server/data/*.csv
