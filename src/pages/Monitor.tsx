@@ -7,9 +7,10 @@ import { useNavigate } from 'react-router-dom';
 interface MonitorProps {
   transactions: Transaction[];
   onCategoryChange: (id: string, newCategory: string) => void;
+  onBatchCategoryChange?: (merchantCategoryMap: Map<string, string>) => void;
 }
 
-const Monitor = ({ transactions, onCategoryChange }: MonitorProps) => {
+const Monitor = ({ transactions, onCategoryChange, onBatchCategoryChange }: MonitorProps) => {
   const navigate = useNavigate();
 
   if (transactions.length === 0) {
@@ -30,7 +31,7 @@ const Monitor = ({ transactions, onCategoryChange }: MonitorProps) => {
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-8">
-        <Dashboard transactions={transactions} onCategoryChange={onCategoryChange} />
+        <Dashboard transactions={transactions} onCategoryChange={onCategoryChange} onBatchCategoryChange={onBatchCategoryChange} />
       </main>
     </div>
   );

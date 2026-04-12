@@ -45,6 +45,7 @@ import {
 interface DashboardProps {
   transactions: Transaction[];
   onCategoryChange: (id: string, newCategory: string) => void;
+  onBatchCategoryChange?: (merchantCategoryMap: Map<string, string>) => void;
 }
 
 const HEBREW_MONTHS = [
@@ -52,7 +53,7 @@ const HEBREW_MONTHS = [
   'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'
 ];
 
-export function Dashboard({ transactions, onCategoryChange }: DashboardProps) {
+export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChange }: DashboardProps) {
   const availableYears = useMemo(() => getAvailableYears(transactions), [transactions]);
   const [selectedYear, setSelectedYear] = useState(availableYears[0] || new Date().getFullYear());
   
@@ -109,11 +110,6 @@ export function Dashboard({ transactions, onCategoryChange }: DashboardProps) {
     [filteredTransactions]
   );
 
-  const topMerchant = useMemo(() => 
-    getTopMerchant(filteredTransactions),
-    [filteredTransactions]
-  );
-
   // Chart data
   const weeklyData = useMemo(() => 
     getWeeklyBreakdown(filteredTransactions, selectedMonth, selectedYear),
@@ -139,27 +135,6 @@ export function Dashboard({ transactions, onCategoryChange }: DashboardProps) {
     getCategoryBreakdown(filteredTransactions),
     [filteredTransactions]
   );
-
-  // Identify categories present in the current period for the pie chart
-  // Note: For the pie chart, when a category is selected, we naturally only see that one slice.
-  // To allow changing selection via chart, it might be better to show ALL categories in the chart
-  // even when filtered? No, usually filtering drill-down hides others.
-  // BUT the user asked: "when a certain category is being pressed in the pie chart it shows the same page but only with expenses that are from that category"
-  // If we filter filteredTransactions, the chart will redraw with only 1 slice (100%).
-  // This is expected behavior for "filtering".
-  // To allow navigating BACK, they use the dropdown or click again? 
-  // Standard is showing 100% slice.
-  
-  // However, we need to pass unfiltered data to the category chart IF we want to see the distribution
-  // while filtered? No, the user wants "everything" to filter.
-  // So yes, chart becomes 1 big slice. To switch to another category, they must use the dropdown 
-  // or maybe we provide a "Clear Filter" button.
-  
-  // Wait, if I filter by "Food", the `filteredTransactions` contains only Food. 
-  // `getCategoryBreakdown` will return `[{name: 'Food', value: X}]`.
-  // The chart will show one big circle for Food.
-  // If they want to click another category, they can't via the chart because others are gone.
-  // This is fine. They can use the dropdown to reset.
 
   const recurrentPayments = useMemo(() => 
     findRecurrentPayments(transactions),
@@ -273,7 +248,7 @@ export function Dashboard({ transactions, onCategoryChange }: DashboardProps) {
                 <WeeklyPieChart data={weeklyData} />
               ) : (
                 <CategoryPieChart 
-                  data={selectedCategory === 'all' ? categoryData : categoryData} // Still pass data, logic handles display
+                  data={categoryData}
                   onCategoryClick={(category) => setSelectedCategory(category)}
                 />
               )}
@@ -369,7 +344,11 @@ export function Dashboard({ transactions, onCategoryChange }: DashboardProps) {
       </div>
 
       {/* Transaction Table */}
-      <TransactionTable transactions={filteredTransactions} onCategoryChange={onCategoryChange} />
+      <TransactionTable 
+        transactions={filteredTransactions} 
+        onCategoryChange={onCategoryChange} 
+        onBatchCategoryChange={onBatchCategoryChange}
+      />
     </div>
   );
 }

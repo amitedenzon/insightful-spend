@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Search, ArrowUpDown, Calendar, Store, CreditCard, Repeat } from 'lucide-react';
+import { Search, ArrowUpDown, Calendar, Store, CreditCard, Repeat, Sparkles, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Transaction } from '@/types/transaction';
 import { cn } from '@/lib/utils';
@@ -12,20 +13,50 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CATEGORIES } from '@/utils/categories';
+import { categorizeTransactionsWithAI } from '@/utils/ai';
+import { toast } from 'sonner';
 
 interface TransactionTableProps {
   transactions: Transaction[];
   onCategoryChange: (id: string, newCategory: string) => void;
+  onBatchCategoryChange?: (merchantCategoryMap: Map<string, string>) => void;
 }
 
 type SortField = 'date' | 'merchant' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-export function TransactionTable({ transactions, onCategoryChange }: TransactionTableProps) {
+export function TransactionTable({ transactions, onCategoryChange, onBatchCategoryChange }: TransactionTableProps) {
+  console.log('TransactionTable rendering with', transactions.length, 'transactions');
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  
+  const [isAIProcessing, setIsAIProcessing] = useState(false);
+  const [aiProgress, setAiProgress] = useState({ current: 0, total: 0 });
 
+  const handleAIClick = async () => {
+    if (!onBatchCategoryChange) return;
+    
+    setIsAIProcessing(true);
+    setAiProgress({ current: 0, total: 0 });
+    
+    try {
+      const result = await categorizeTransactionsWithAI(
+        transactions, 
+        (current, total) => setAiProgress({ current, total })
+      );
+      
+      onBatchCategoryChange(result);
+      toast.success(`סווגו בהצלחה ${result.size} בתי עסק`);
+    } catch (error) {
+      console.error('AI Categorization failed', error);
+      toast.error('שגיאה בסיווג האוטומטי');
+    } finally {
+      setIsAIProcessing(false);
+    }
+  };
+  
+  // ... (useMemo filteredAndSorted)
   const filteredAndSorted = useMemo(() => {
     let filtered = transactions;
 
@@ -53,10 +84,12 @@ export function TransactionTable({ transactions, onCategoryChange }: Transaction
     });
   }, [transactions, search, sortField, sortDirection]);
 
+  // ... (filteredTotal)
   const filteredTotal = useMemo(() => {
     return filteredAndSorted.reduce((sum, t) => sum + t.chargeAmount, 0);
   }, [filteredAndSorted]);
 
+  // ... (toggleSort)
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
@@ -65,7 +98,7 @@ export function TransactionTable({ transactions, onCategoryChange }: Transaction
       setSortDirection('desc');
     }
   };
-
+  
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('he-IL', {
       day: '2-digit',
@@ -87,8 +120,32 @@ export function TransactionTable({ transactions, onCategoryChange }: Transaction
               className="pr-10 bg-background"
             />
           </div>
+          
+          {onBatchCategoryChange && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleAIClick} 
+              disabled={isAIProcessing}
+              className="gap-2 rtl:flex-row-reverse"
+            >
+              {isAIProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>{aiProgress.current}/{aiProgress.total}</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 text-purple-500" />
+                  <span className="hidden sm:inline">סיווג AI</span>
+                </>
+              )}
+            </Button>
+          )}
+
           <Badge variant="secondary" className="whitespace-nowrap flex gap-2">
             <span>{filteredAndSorted.length} עסקאות</span>
+             {/* ... rest of badge ... */}
             {search.trim() && (
               <>
                 <span className="opacity-50">|</span>

@@ -79,7 +79,6 @@ export function parseCSV(csvContent: string): Transaction[] {
     }
 
     const category = categorizeMerchant(merchantName, cleanedInfo);
-    console.log(`Row ${i}: Merchant="${merchantName}", Info="${cleanedInfo}" -> Category="${category}"`);
 
     const transaction: Transaction = {
       id: `${purchaseDate.toISOString()}-${merchantName}-${chargeAmount}-${i}`,

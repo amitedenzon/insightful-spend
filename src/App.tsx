@@ -88,6 +88,33 @@ const App = () => {
     });
   }, []);
 
+  const handleBatchCategoryChange = useCallback((merchantCategoryMap: Map<string, string>) => {
+    setTransactions(prev => {
+      const updated = prev.map(t => {
+        if (merchantCategoryMap.has(t.merchantName)) {
+          return { ...t, category: merchantCategoryMap.get(t.merchantName)! };
+        }
+        return t;
+      });
+
+      // Save overrides to localStorage (saving by ID for consistency)
+      try {
+        const saved = localStorage.getItem('category_overrides');
+        const overrides = saved ? JSON.parse(saved) : {};
+        updated.forEach(t => {
+           if (merchantCategoryMap.has(t.merchantName)) {
+             overrides[t.id] = t.category;
+           }
+        });
+        localStorage.setItem('category_overrides', JSON.stringify(overrides));
+      } catch (e) {
+        console.error('Failed to save batch overrides', e);
+      }
+
+      return updated;
+    });
+  }, []);
+
   const handleFilesSelected = useCallback(async (files: File[]) => {
     setIsLoading(true);
     try {
@@ -134,7 +161,7 @@ const App = () => {
                   />
                   <Route 
                     path="/monitor" 
-                    element={<Monitor transactions={transactions} onCategoryChange={handleCategoryChange} />} 
+                    element={<Monitor transactions={transactions} onCategoryChange={handleCategoryChange} onBatchCategoryChange={handleBatchCategoryChange} />} 
                   />
                   <Route path="/data" element={<DataManagement />} />
                   <Route path="*" element={<NotFound />} />

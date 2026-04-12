@@ -93,6 +93,27 @@ app.delete('/api/files/:filename', (req, res) => {
     res.status(500).json({ error: 'Failed to delete file' });
   }
 });
+// Ollama Proxy
+app.post('/api/ollama', async (req, res) => {
+  try {
+    const response = await fetch('http://localhost:11434/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Ollama Proxy Error:', error);
+    res.status(500).json({ error: 'Failed to communicate with AI service' });
+  }
+});
+
 // Serve static files from the React app (for production/docker)
 const distPath = path.join(__dirname, '../dist');
 if (fs.existsSync(distPath)) {

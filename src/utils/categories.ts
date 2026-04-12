@@ -44,15 +44,12 @@ const KEYWORDS: Record<string, string[]> = {
 
 export function categorizeMerchant(merchantName: string, description: string = ''): string {
   const normalizedText = `${merchantName} ${description}`.toLowerCase();
-  // console.log('Categorizing:', { merchantName, description, normalizedText });
 
   for (const [category, keywords] of Object.entries(KEYWORDS)) {
     if (keywords.some(keyword => normalizedText.includes(keyword.toLowerCase()))) {
-      // console.log('Matched:', category, 'Keyword:', keywords.find(k => normalizedText.includes(k.toLowerCase())));
       return category;
     }
   }
 
-  // console.log('No match found, defaulting to OTHER');
   return CATEGORIES.OTHER;
 }
