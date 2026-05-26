@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
@@ -5,6 +6,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
+import { scrapeAll, readAllScraped, readScrapedMeta } from './scrapers/index.js';
+import { getState, submitOtp, isBusy } from './scrapers/state.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -161,13 +164,50 @@ Rules:
   }
 });
 
+// Start a scrape in the background; HTTP response returns immediately so the
+// client can poll /api/scrape/status. Required because Isracard's OTP pause
+// can hold the scrape open for as long as the user takes to type a code.
+app.post('/api/scrape', async (req, res) => {
+  if (isBusy()) {
+    return res.status(409).json({ error: 'Scrape already in progress' });
+  }
+  // Fire and forget — errors are surfaced via /api/scrape/status.
+  scrapeAll().catch(err => console.error('Background scrape error:', err));
+  res.json({ started: true });
+});
+
+// Poll current job status. Returns {status, message, provider, result?}.
+// status: idle | running | awaiting_otp | done | failed.
+app.get('/api/scrape/status', (req, res) => {
+  res.json(getState());
+});
+
+// Submit OTP code when status is awaiting_otp.
+app.post('/api/scrape/otp', (req, res) => {
+  const code = String(req.body?.code || '').trim();
+  if (!code) return res.status(400).json({ error: 'Missing code' });
+  const accepted = submitOtp(code);
+  if (!accepted) return res.status(409).json({ error: 'Scraper is not waiting for an OTP right now' });
+  res.json({ accepted: true });
+});
+
+// Return all previously-scraped transactions (already in Transaction shape).
+app.get('/api/scraped', (req, res) => {
+  try {
+    res.json({ transactions: readAllScraped(), meta: readScrapedMeta() });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Failed to read scraped data' });
+  }
+});
+
 // Serve static files from the React app (for production/docker)
 const distPath = path.join(__dirname, '../dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
   
-  // Handle SPA routing - return index.html for all non-API routes
-  app.get('*', (req, res) => {
+  // Handle SPA routing - return index.html for all non-API routes.
+  // Express 5 / path-to-regexp v8 reject the bare `'*'` string, so use a regex.
+  app.get(/.*/, (req, res) => {
     if (req.path.startsWith('/api')) {
       return res.status(404).json({ error: 'Not Found' });
     }

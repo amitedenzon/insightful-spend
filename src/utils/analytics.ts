@@ -1,7 +1,28 @@
 import { Transaction, WeeklyData, DailyData, MerchantData, RecurrentPayment, PaymentChange } from '@/types/transaction';
 
+// Income (salary, refunds, credits) lands as a negative chargeAmount — the
+// bank-account scraper flips the sign on credits and CSV statements only
+// contain positive charges. All spending aggregates filter via this helper
+// so income doesn't subtract from totals or pollute category breakdowns.
+function expensesOnly(transactions: Transaction[]): Transaction[] {
+  return transactions.filter(t => t.chargeAmount > 0);
+}
+
 export function calculateTotalSpending(transactions: Transaction[]): number {
-  return transactions.reduce((sum, t) => sum + t.chargeAmount, 0);
+  return expensesOnly(transactions).reduce((sum, t) => sum + t.chargeAmount, 0);
+}
+
+// Sum of all credits in the period (returned as a positive number).
+export function calculateIncomeTotal(transactions: Transaction[]): number {
+  let sum = 0;
+  for (const t of transactions) {
+    if (t.chargeAmount < 0) sum += -t.chargeAmount;
+  }
+  return sum;
+}
+
+export function countIncomeTransactions(transactions: Transaction[]): number {
+  return transactions.filter(t => t.chargeAmount < 0).length;
 }
 
 export function calculateDailyAverage(transactions: Transaction[], daysInPeriod: number): number {
@@ -13,7 +34,7 @@ export function calculateStandingOrdersTotal(
   transactions: Transaction[],
   recurringMerchants: Set<string> = new Set()
 ): number {
-  return transactions
+  return expensesOnly(transactions)
     .filter(t => t.isStandingOrder || recurringMerchants.has(t.merchantName))
     .reduce((sum, t) => sum + t.chargeAmount, 0);
 }
@@ -22,7 +43,7 @@ export function calculateStandingOrdersTotal(
 // standing orders, plus merchants auto-detected as recurring by findRecurrentPayments.
 export function getRecurringMerchantNames(allTransactions: Transaction[]): Set<string> {
   const set = new Set<string>();
-  for (const t of allTransactions) {
+  for (const t of expensesOnly(allTransactions)) {
     if (t.isStandingOrder) set.add(t.merchantName);
   }
   for (const r of findRecurrentPayments(allTransactions)) {
@@ -38,7 +59,7 @@ export function findPaymentChanges(
   lookbackMonths: number = 3
 ): PaymentChange[] {
   const byMerchant = new Map<string, Map<string, number>>();
-  for (const t of allTransactions) {
+  for (const t of expensesOnly(allTransactions)) {
     const key = `${t.statementDate.getFullYear()}-${t.statementDate.getMonth()}`;
     if (!byMerchant.has(t.merchantName)) byMerchant.set(t.merchantName, new Map());
     const m = byMerchant.get(t.merchantName)!;
@@ -85,7 +106,7 @@ export function findPaymentChanges(
 export function getTopMerchant(transactions: Transaction[]): MerchantData | null {
   const merchantMap = new Map<string, MerchantData>();
 
-  transactions.forEach(t => {
+  expensesOnly(transactions).forEach(t => {
     const existing = merchantMap.get(t.merchantName) || { name: t.merchantName, total: 0, count: 0 };
     existing.total += t.chargeAmount;
     existing.count += 1;
@@ -110,7 +131,7 @@ export function getWeeklyBreakdown(transactions: Transaction[], month: number, y
     { week: 4, label: '22+', amount: 0 },
   ];
 
-  transactions.forEach(t => {
+  expensesOnly(transactions).forEach(t => {
     const day = t.purchaseDate.getDate();
     if (day <= 7) weeks[0].amount += t.chargeAmount;
     else if (day <= 14) weeks[1].amount += t.chargeAmount;
@@ -124,9 +145,10 @@ export function getWeeklyBreakdown(transactions: Transaction[], month: number, y
 export function getDailyBreakdown(transactions: Transaction[], month: number, year: number): DailyData[] {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const dailyData: DailyData[] = [];
+  const expenses = expensesOnly(transactions);
 
   for (let day = 1; day <= daysInMonth; day++) {
-    const dayTransactions = transactions.filter(t => 
+    const dayTransactions = expenses.filter(t =>
       t.purchaseDate.getDate() === day
     );
     const amount = dayTransactions.reduce((sum, t) => sum + t.chargeAmount, 0);
@@ -145,9 +167,10 @@ export function getMonthlyBreakdown(transactions: Transaction[], year: number): 
     'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
     'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'
   ];
+  const expenses = expensesOnly(transactions);
 
   const monthlyData = hebrewMonths.map((name, index) => {
-    const monthTransactions = transactions.filter(t =>
+    const monthTransactions = expenses.filter(t =>
       t.statementDate.getMonth() === index && t.statementDate.getFullYear() === year
     );
     return {
@@ -171,7 +194,7 @@ export function findRecurrentPayments(transactions: Transaction[]): RecurrentPay
   const merchantMonthlyData = new Map<string, Map<string, number>>();
 
   // Group transactions by merchant and statement-month, SUMMING amounts
-  transactions.forEach(t => {
+  expensesOnly(transactions).forEach(t => {
     const monthKey = `${t.statementDate.getFullYear()}-${t.statementDate.getMonth() + 1}`;
     
     if (!merchantMonthlyData.has(t.merchantName)) {
@@ -219,7 +242,7 @@ export function findRecurrentPayments(transactions: Transaction[]): RecurrentPay
 export function getTopMerchants(transactions: Transaction[], limit: number = 5): MerchantData[] {
   const merchantMap = new Map<string, MerchantData>();
 
-  transactions.forEach(t => {
+  expensesOnly(transactions).forEach(t => {
     const existing = merchantMap.get(t.merchantName) || { name: t.merchantName, total: 0, count: 0 };
     existing.total += t.chargeAmount;
     existing.count += 1;
@@ -264,7 +287,7 @@ export function getAvailableMonths(transactions: Transaction[], year: number): n
 export function getCategoryBreakdown(transactions: Transaction[]): { name: string; value: number }[] {
   const categoryMap = new Map<string, number>();
 
-  transactions.forEach(t => {
+  expensesOnly(transactions).forEach(t => {
     const category = t.category || 'אחר';
     const current = categoryMap.get(category) || 0;
     categoryMap.set(category, current + t.chargeAmount);
@@ -274,4 +297,96 @@ export function getCategoryBreakdown(transactions: Transaction[]): { name: strin
     .map(([name, value]) => ({ name, value }))
     .filter(item => item.value > 0)
     .sort((a, b) => b.value - a.value);
+}
+
+// Sum spending per category for the given (already filtered) transactions.
+export function getCategorySpending(transactions: Transaction[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const t of expensesOnly(transactions)) {
+    const cat = t.category || 'אחר';
+    map.set(cat, (map.get(cat) || 0) + t.chargeAmount);
+  }
+  return map;
+}
+
+// Distribute a single monthly budget across categories by fitting a linear
+// regression on each category's monthly totals over the last 12 statement
+// months strictly before (refYear, refMonth). Predict next month's value per
+// category, normalize to shares, multiply by `total`.
+//
+// Sparse categories (< 3 nonzero months) fall back to their plain mean — a
+// regression on 1-2 nonzero points overfits to noise. Predictions are clipped
+// at 0 so a long downtrend doesn't produce a negative allocation.
+export function projectCategoryBudgets(
+  allTransactions: Transaction[],
+  total: number,
+  refYear: number,
+  refMonth: number,
+  lookbackMonths: number = 12
+): Map<string, number> {
+  const out = new Map<string, number>();
+  if (total <= 0) return out;
+
+  // Build the lookback window: lookbackMonths consecutive statement-months
+  // ending just before the reference month.
+  const monthKeys: string[] = [];
+  for (let i = lookbackMonths; i >= 1; i--) {
+    const d = new Date(refYear, refMonth - i, 1);
+    monthKeys.push(`${d.getFullYear()}-${d.getMonth()}`);
+  }
+  const monthIndex = new Map<string, number>();
+  monthKeys.forEach((k, i) => monthIndex.set(k, i));
+
+  // Per-category, per-month-index totals. Income excluded so a recurring
+  // paycheck doesn't show up as a "category" the budget gets allocated to.
+  const series = new Map<string, number[]>();
+  for (const t of expensesOnly(allTransactions)) {
+    const k = `${t.statementDate.getFullYear()}-${t.statementDate.getMonth()}`;
+    const idx = monthIndex.get(k);
+    if (idx == null) continue;
+    const cat = t.category || 'אחר';
+    if (!series.has(cat)) series.set(cat, new Array(monthKeys.length).fill(0));
+    series.get(cat)![idx] += t.chargeAmount;
+  }
+
+  if (series.size === 0) return out;
+
+  // For each category, predict the next-month value.
+  const predictions = new Map<string, number>();
+  series.forEach((ys, cat) => {
+    const n = ys.length;
+    const nonzero = ys.filter(v => v > 0).length;
+    let next: number;
+
+    if (nonzero < 3) {
+      // Too few points for regression — use the mean of all months (zeros
+      // included), since infrequent categories should get smaller shares.
+      next = ys.reduce((a, b) => a + b, 0) / n;
+    } else {
+      // Ordinary least-squares fit of y over x = 0..n-1.
+      const xs = ys.map((_, i) => i);
+      const meanX = xs.reduce((a, b) => a + b, 0) / n;
+      const meanY = ys.reduce((a, b) => a + b, 0) / n;
+      let num = 0;
+      let den = 0;
+      for (let i = 0; i < n; i++) {
+        num += (xs[i] - meanX) * (ys[i] - meanY);
+        den += (xs[i] - meanX) ** 2;
+      }
+      const slope = den === 0 ? 0 : num / den;
+      const intercept = meanY - slope * meanX;
+      // Predict at x = n (next month after the lookback window).
+      next = Math.max(0, slope * n + intercept);
+    }
+
+    if (next > 0) predictions.set(cat, next);
+  });
+
+  const sum = Array.from(predictions.values()).reduce((a, b) => a + b, 0);
+  if (sum <= 0) return out;
+
+  predictions.forEach((v, k) => {
+    out.set(k, (v / sum) * total);
+  });
+  return out;
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CreditCard, TrendingDown, Calendar, Store, Repeat, Wallet } from 'lucide-react';
+import { CreditCard, TrendingDown, Calendar, Store, Repeat, Wallet, TrendingUp } from 'lucide-react';
 import { Transaction, ViewMode } from '@/types/transaction';
 import { MetricCard } from './MetricCard';
 import { ViewToggle } from './ViewToggle';
@@ -31,8 +31,9 @@ import { CATEGORIES } from '@/utils/categories';
 import { Filter } from 'lucide-react';
 import {
   calculateTotalSpending,
-  calculateDailyAverage,
   calculateStandingOrdersTotal,
+  calculateIncomeTotal,
+  countIncomeTransactions,
   getTopMerchant,
   getWeeklyBreakdown,
   getDailyBreakdown,
@@ -92,22 +93,14 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
     [filteredTransactions]
   );
 
-  const daysInPeriod = useMemo(() => {
-    if (viewMode === 'month') {
-      return new Date(selectedYear, selectedMonth + 1, 0).getDate();
-    }
-    // For year view, count actual days with transactions
-    const now = new Date();
-    if (selectedYear === now.getFullYear()) {
-      const startOfYear = new Date(selectedYear, 0, 1);
-      return Math.ceil((now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24));
-    }
-    return 365;
-  }, [viewMode, selectedMonth, selectedYear]);
+  const incomeTotal = useMemo(
+    () => calculateIncomeTotal(filteredTransactions),
+    [filteredTransactions]
+  );
 
-  const dailyAverage = useMemo(() => 
-    calculateDailyAverage(filteredTransactions, daysInPeriod),
-    [filteredTransactions, daysInPeriod]
+  const incomeCount = useMemo(
+    () => countIncomeTransactions(filteredTransactions),
+    [filteredTransactions]
   );
 
   const recurringMerchants = useMemo(
@@ -151,7 +144,7 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
     [filteredTransactions]
   );
 
-  const periodLabel = viewMode === 'month' 
+  const periodLabel = viewMode === 'month'
     ? `${HEBREW_MONTHS[selectedMonth]} ${selectedYear}`
     : `שנת ${selectedYear}`;
 
@@ -204,10 +197,16 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
           delay={0}
         />
         <MetricCard
-          title="ממוצע יומי"
-          value={dailyAverage}
-          subtitle={`${daysInPeriod} ימים`}
-          icon={<TrendingDown className="h-6 w-6" />}
+          title="הכנסות"
+          value={incomeTotal}
+          subtitle={
+            incomeCount === 0
+              ? 'אין זיכויים בתקופה'
+              : incomeCount === 1
+                ? 'זיכוי אחד'
+                : `${incomeCount} זיכויים`
+          }
+          icon={<TrendingUp className="h-6 w-6" />}
           variant="primary"
           delay={50}
         />

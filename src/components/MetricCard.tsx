@@ -10,13 +10,13 @@ interface MetricCardProps {
   delay?: number;
 }
 
-export function MetricCard({ 
-  title, 
-  value, 
-  subtitle, 
-  icon, 
+export function MetricCard({
+  title,
+  value,
+  subtitle,
+  icon,
   variant = 'default',
-  delay = 0 
+  delay = 0
 }: MetricCardProps) {
   const variantStyles = {
     default: 'bg-card border-border',

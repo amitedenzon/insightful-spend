@@ -1,4 +1,4 @@
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, Area, AreaChart } from 'recharts';
+import { XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, Area, AreaChart, ReferenceLine, Label } from 'recharts';
 
 interface TrendLineChartProps {
   data: { month: string; amount: number }[];
@@ -6,6 +6,13 @@ interface TrendLineChartProps {
 
 export function TrendLineChart({ data }: TrendLineChartProps) {
   const maxAmount = Math.max(...data.map(d => d.amount));
+
+  // Average across months with actual spending — months with zero (future or
+  // unloaded) would drag the average down artificially.
+  const activeMonths = data.filter(d => d.amount > 0);
+  const monthlyAverage = activeMonths.length > 0
+    ? activeMonths.reduce((s, d) => s + d.amount, 0) / activeMonths.length
+    : 0;
 
   if (maxAmount === 0) {
     return (
@@ -65,6 +72,26 @@ export function TrendLineChart({ data }: TrendLineChartProps) {
             dot={{ fill: 'hsl(var(--primary))', strokeWidth: 0, r: 4 }}
             activeDot={{ fill: 'hsl(var(--primary))', strokeWidth: 0, r: 6 }}
           />
+          {monthlyAverage > 0 && (
+            <ReferenceLine
+              y={monthlyAverage}
+              stroke="hsl(var(--muted-foreground))"
+              strokeDasharray="4 4"
+              strokeWidth={1.5}
+              ifOverflow="extendDomain"
+            >
+              <Label
+                value={Math.round(monthlyAverage).toLocaleString('he-IL', {
+                  style: 'currency',
+                  currency: 'ILS',
+                  maximumFractionDigits: 0,
+                })}
+                position="top"
+                fill="hsl(var(--muted-foreground))"
+                fontSize={10}
+              />
+            </ReferenceLine>
+          )}
         </AreaChart>
       </ResponsiveContainer>
     </div>

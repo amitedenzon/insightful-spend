@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/Sidebar";
 import Upload from "@/pages/Upload";
 import Monitor from "@/pages/Monitor";
 import RecurringPaymentsPage from "@/pages/RecurringPayments";
+import BudgetsPage from "@/pages/Budgets";
 import DataManagement from "@/pages/DataManagement";
 import NotFound from "./pages/NotFound";
 import { Transaction } from '@/types/transaction';
@@ -23,37 +24,60 @@ const App = () => {
   
   const [mounted, setMounted] = useState(false);
 
+  // Scraped transactions arrive as JSON with ISO strings; revive Date fields
+  // and run them through the same category-override pipeline as CSV rows.
+  const hydrateScraped = (raw: any[]): Transaction[] =>
+    raw.map(t => ({
+      ...t,
+      purchaseDate: new Date(t.purchaseDate),
+      statementDate: new Date(t.statementDate),
+    }));
+
+  const mergeUnique = (existing: Transaction[], incoming: Transaction[]) => {
+    const seen = new Set<string>();
+    const combined = [...incoming, ...existing];
+    return combined.filter(t => {
+      if (seen.has(t.id)) return false;
+      seen.add(t.id);
+      return true;
+    });
+  };
+
+  const loadScraped = useCallback(async () => {
+    try {
+      const res = await fetch('/api/scraped');
+      if (!res.ok) return;
+      const { transactions: raw } = await res.json();
+      if (!Array.isArray(raw) || raw.length === 0) return;
+      const scraped = hydrateScraped(raw);
+      setTransactions(prev => applyCategoryOverrides(mergeUnique(prev, scraped)));
+    } catch (error) {
+      console.error('Failed to load scraped data:', error);
+    }
+  }, []);
+
   useEffect(() => {
     const loadFiles = async () => {
       try {
         const res = await fetch('/api/files');
         if (!res.ok) return;
         const filesData: { name: string, content: string }[] = await res.json();
-        
-        // Convert to File objects to reuse parser
-        const fileObjects = filesData.map(f => 
+
+        const fileObjects = filesData.map(f =>
           new File([f.content], f.name, { type: 'text/csv' })
         );
-        
+
         if (fileObjects.length > 0) {
            const parsed = await parseMultipleCSVs(fileObjects);
-           setTransactions(prev => {
-            const combined = [...parsed, ...prev];
-            const seen = new Set<string>();
-            const unique = combined.filter(t => {
-              if (seen.has(t.id)) return false;
-              seen.add(t.id);
-              return true;
-            });
-            return applyCategoryOverrides(unique);
-          });
+           setTransactions(prev => applyCategoryOverrides(mergeUnique(prev, parsed)));
         }
       } catch (error) {
         console.error('Failed to load persisted files:', error);
       }
     };
     loadFiles();
-  }, []);
+    loadScraped();
+  }, [loadScraped]);
 
 
 
@@ -167,10 +191,11 @@ const App = () => {
                   <Route 
                     path="/upload" 
                     element={
-                      <Upload 
-                        onFilesSelected={handleFilesSelected} 
+                      <Upload
+                        onFilesSelected={handleFilesSelected}
                         isLoading={isLoading}
                         transactionCount={transactions.length}
+                        onSync={loadScraped}
                       />
                     } 
                   />
@@ -181,6 +206,10 @@ const App = () => {
                   <Route
                     path="/recurring"
                     element={<RecurringPaymentsPage transactions={transactions} />}
+                  />
+                  <Route
+                    path="/budgets"
+                    element={<BudgetsPage transactions={transactions} />}
                   />
                   <Route path="/data" element={<DataManagement />} />
                   <Route path="*" element={<NotFound />} />
