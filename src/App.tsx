@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/Sidebar";
 import Upload from "@/pages/Upload";
 import Monitor from "@/pages/Monitor";
 import RecurringPaymentsPage from "@/pages/RecurringPayments";
+import BudgetsPage from "@/pages/Budgets";
 import DataManagement from "@/pages/DataManagement";
 import NotFound from "./pages/NotFound";
 import { Transaction } from '@/types/transaction';
@@ -182,6 +183,7 @@ const App = () => {
                     path="/recurring"
                     element={<RecurringPaymentsPage transactions={transactions} />}
                   />
+                  <Route path="/budgets" element={<BudgetsPage />} />
                   <Route path="/data" element={<DataManagement />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>

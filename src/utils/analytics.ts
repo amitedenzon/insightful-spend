@@ -275,3 +275,72 @@ export function getCategoryBreakdown(transactions: Transaction[]): { name: strin
     .filter(item => item.value > 0)
     .sort((a, b) => b.value - a.value);
 }
+
+// Sum spending per category for the given (already filtered) transactions.
+export function getCategorySpending(transactions: Transaction[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const t of transactions) {
+    const cat = t.category || 'אחר';
+    map.set(cat, (map.get(cat) || 0) + t.chargeAmount);
+  }
+  return map;
+}
+
+// Project end-of-month spending based on current pace. Returns null when:
+// - viewing a past month (already complete — no forecast needed)
+// - viewing a future month
+// - the selected month has zero days elapsed (e.g. mid-month switch with no data)
+export function forecastMonthlyTotal(
+  filteredTotal: number,
+  year: number,
+  month: number,
+  asOf: Date = new Date()
+): number | null {
+  const isCurrentMonth =
+    asOf.getFullYear() === year && asOf.getMonth() === month;
+  if (!isCurrentMonth) return null;
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const dayOfMonth = asOf.getDate();
+  if (dayOfMonth <= 0 || filteredTotal <= 0) return null;
+  if (dayOfMonth >= daysInMonth) return null;
+
+  return (filteredTotal / dayOfMonth) * daysInMonth;
+}
+
+export interface YoYComparison {
+  lastYearAmount: number;
+  delta: number;
+  percentDelta: number;
+}
+
+// Compare spending in the selected month vs the same month last year.
+// Returns null when there are no transactions for the same month last year.
+export function getYearOverYearMonthly(
+  allTransactions: Transaction[],
+  currentMonth: number,
+  currentYear: number,
+  currentAmount: number
+): YoYComparison | null {
+  const prior = allTransactions.filter(
+    t =>
+      t.statementDate.getFullYear() === currentYear - 1 &&
+      t.statementDate.getMonth() === currentMonth
+  );
+  if (prior.length === 0) return null;
+
+  const lastYearAmount = prior.reduce((sum, t) => sum + t.chargeAmount, 0);
+  const delta = currentAmount - lastYearAmount;
+  const percentDelta = lastYearAmount > 0 ? (delta / lastYearAmount) * 100 : 0;
+  return { lastYearAmount, delta, percentDelta };
+}
+
+// Top N single biggest charges in the given (already filtered) transactions.
+export function getLargestTransactions(
+  transactions: Transaction[],
+  limit: number = 5
+): Transaction[] {
+  return [...transactions]
+    .sort((a, b) => b.chargeAmount - a.chargeAmount)
+    .slice(0, limit);
+}

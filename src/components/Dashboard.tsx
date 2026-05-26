@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CreditCard, TrendingDown, Calendar, Store, Repeat, Wallet } from 'lucide-react';
+import { CreditCard, TrendingDown, TrendingUp, Calendar, Store, Repeat, Wallet, Receipt } from 'lucide-react';
 import { Transaction, ViewMode } from '@/types/transaction';
 import { MetricCard } from './MetricCard';
 import { ViewToggle } from './ViewToggle';
@@ -11,6 +11,9 @@ import { MonthlyPieChart } from './charts/MonthlyPieChart';
 import { TrendLineChart } from './charts/TrendLineChart';
 import { TransactionTable } from './TransactionTable';
 import { TopMerchants } from './TopMerchants';
+import { BudgetProgress } from './BudgetProgress';
+import { LargestTransactions } from './LargestTransactions';
+import { useBudgets } from '@/utils/budgets';
 import { CategoryPieChart } from './charts/CategoryPieChart';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -44,6 +47,10 @@ import {
   getAvailableMonths,
   getCategoryBreakdown,
   getRecurringMerchantNames,
+  getCategorySpending,
+  forecastMonthlyTotal,
+  getYearOverYearMonthly,
+  getLargestTransactions,
 } from '@/utils/analytics';
 
 interface DashboardProps {
@@ -151,7 +158,39 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
     [filteredTransactions]
   );
 
-  const periodLabel = viewMode === 'month' 
+  const { budgets } = useBudgets();
+
+  const categorySpending = useMemo(
+    () => getCategorySpending(filteredTransactions),
+    [filteredTransactions]
+  );
+
+  // Forecast / YoY only make sense in monthly view; the helpers themselves
+  // also no-op outside of that. The category filter would distort the
+  // projection (compares a slice to the whole budget pool), so we forecast
+  // off the whole-period total instead — derived independently here.
+  const fullPeriodTotal = useMemo(() => {
+    if (viewMode !== 'month') return 0;
+    return filterTransactionsByPeriod(transactions, selectedMonth, selectedYear)
+      .reduce((sum, t) => sum + t.chargeAmount, 0);
+  }, [transactions, viewMode, selectedMonth, selectedYear]);
+
+  const forecastTotal = useMemo(() => {
+    if (viewMode !== 'month' || selectedCategory !== 'all') return null;
+    return forecastMonthlyTotal(fullPeriodTotal, selectedYear, selectedMonth);
+  }, [fullPeriodTotal, selectedYear, selectedMonth, viewMode, selectedCategory]);
+
+  const yoy = useMemo(() => {
+    if (viewMode !== 'month' || selectedCategory !== 'all') return null;
+    return getYearOverYearMonthly(transactions, selectedMonth, selectedYear, fullPeriodTotal);
+  }, [transactions, selectedMonth, selectedYear, fullPeriodTotal, viewMode, selectedCategory]);
+
+  const largestTransactions = useMemo(
+    () => getLargestTransactions(filteredTransactions, 5),
+    [filteredTransactions]
+  );
+
+  const periodLabel = viewMode === 'month'
     ? `${HEBREW_MONTHS[selectedMonth]} ${selectedYear}`
     : `שנת ${selectedYear}`;
 
@@ -202,6 +241,50 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
           icon={<CreditCard className="h-6 w-6" />}
           variant="spending"
           delay={0}
+          footer={
+            (forecastTotal != null || yoy != null) ? (
+              <>
+                {forecastTotal != null && (
+                  <p className="truncate">
+                    צפי לסוף חודש:{' '}
+                    <span className="font-medium text-foreground tabular-nums">
+                      {forecastTotal.toLocaleString('he-IL', {
+                        style: 'currency',
+                        currency: 'ILS',
+                        maximumFractionDigits: 0,
+                      })}
+                    </span>
+                  </p>
+                )}
+                {yoy != null && (
+                  <p className="flex items-center gap-1 truncate">
+                    <span>אשתקד:</span>
+                    <span className="font-medium text-foreground tabular-nums">
+                      {yoy.lastYearAmount.toLocaleString('he-IL', {
+                        style: 'currency',
+                        currency: 'ILS',
+                        maximumFractionDigits: 0,
+                      })}
+                    </span>
+                    <span
+                      className={
+                        yoy.delta >= 0
+                          ? 'text-destructive flex items-center gap-0.5'
+                          : 'text-emerald-600 flex items-center gap-0.5'
+                      }
+                    >
+                      {yoy.delta >= 0 ? (
+                        <TrendingUp className="h-3.5 w-3.5" />
+                      ) : (
+                        <TrendingDown className="h-3.5 w-3.5" />
+                      )}
+                      {`${yoy.delta >= 0 ? '+' : ''}${yoy.percentDelta.toFixed(0)}%`}
+                    </span>
+                  </p>
+                )}
+              </>
+            ) : undefined
+          }
         />
         <MetricCard
           title="ממוצע יומי"
@@ -219,6 +302,14 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
           delay={100}
         />
       </div>
+
+      {/* Budget Progress (monthly view only) */}
+      {viewMode === 'month' && (
+        <BudgetProgress
+          budgets={budgets}
+          categorySpending={categorySpending}
+        />
+      )}
 
       {/* Main Charts & Top Merchants Row */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -317,6 +408,15 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
           </>
         )}
       </div>
+
+      {/* Largest single transactions */}
+      <ChartCard
+        title="עסקאות גדולות"
+        subtitle="5 העסקאות הבודדות הגדולות בתקופה"
+        delay={350}
+      >
+        <LargestTransactions transactions={largestTransactions} />
+      </ChartCard>
 
       {/* Transaction Table */}
       <TransactionTable

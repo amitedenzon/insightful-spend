@@ -166,8 +166,9 @@ const distPath = path.join(__dirname, '../dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
   
-  // Handle SPA routing - return index.html for all non-API routes
-  app.get('*', (req, res) => {
+  // Handle SPA routing - return index.html for all non-API routes.
+  // Express 5 / path-to-regexp v8 reject the bare `'*'` string, so use a regex.
+  app.get(/.*/, (req, res) => {
     if (req.path.startsWith('/api')) {
       return res.status(404).json({ error: 'Not Found' });
     }

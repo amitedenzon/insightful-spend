@@ -10,6 +10,7 @@ import {
   Moon,
   Database,
   Repeat,
+  Target,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -27,6 +28,7 @@ export function Sidebar({ className }: SidebarProps) {
     { to: '/upload', label: 'העלאת קבצים', icon: Upload },
     { to: '/monitor', label: 'מעקב הוצאות', icon: BarChart3 },
     { to: '/recurring', label: 'תשלומים חוזרים', icon: Repeat },
+    { to: '/budgets', label: 'תקציבים', icon: Target },
     { to: '/data', label: 'ניהול נתונים', icon: Database },
   ];
 
