@@ -1,4 +1,4 @@
-import { Transaction, WeeklyData, DailyData, MerchantData, RecurrentPayment } from '@/types/transaction';
+import { Transaction, WeeklyData, DailyData, MerchantData, RecurrentPayment, PaymentChange } from '@/types/transaction';
 
 export function calculateTotalSpending(transactions: Transaction[]): number {
   return transactions.reduce((sum, t) => sum + t.chargeAmount, 0);
@@ -9,10 +9,77 @@ export function calculateDailyAverage(transactions: Transaction[], daysInPeriod:
   return daysInPeriod > 0 ? total / daysInPeriod : 0;
 }
 
-export function calculateStandingOrdersTotal(transactions: Transaction[]): number {
+export function calculateStandingOrdersTotal(
+  transactions: Transaction[],
+  recurringMerchants: Set<string> = new Set()
+): number {
   return transactions
-    .filter(t => t.isStandingOrder)
+    .filter(t => t.isStandingOrder || recurringMerchants.has(t.merchantName))
     .reduce((sum, t) => sum + t.chargeAmount, 0);
+}
+
+// Returns the set of merchant names considered "regular" spending: bank-flagged
+// standing orders, plus merchants auto-detected as recurring by findRecurrentPayments.
+export function getRecurringMerchantNames(allTransactions: Transaction[]): Set<string> {
+  const set = new Set<string>();
+  for (const t of allTransactions) {
+    if (t.isStandingOrder) set.add(t.merchantName);
+  }
+  for (const r of findRecurrentPayments(allTransactions)) {
+    set.add(r.merchantName);
+  }
+  return set;
+}
+
+export function findPaymentChanges(
+  allTransactions: Transaction[],
+  selectedMonth: number,
+  selectedYear: number,
+  lookbackMonths: number = 3
+): PaymentChange[] {
+  const byMerchant = new Map<string, Map<string, number>>();
+  for (const t of allTransactions) {
+    const key = `${t.statementDate.getFullYear()}-${t.statementDate.getMonth()}`;
+    if (!byMerchant.has(t.merchantName)) byMerchant.set(t.merchantName, new Map());
+    const m = byMerchant.get(t.merchantName)!;
+    m.set(key, (m.get(key) || 0) + t.chargeAmount);
+  }
+
+  const currentKey = `${selectedYear}-${selectedMonth}`;
+  const baselineKeys: string[] = [];
+  for (let i = 1; i <= lookbackMonths; i++) {
+    const d = new Date(selectedYear, selectedMonth - i, 1);
+    baselineKeys.push(`${d.getFullYear()}-${d.getMonth()}`);
+  }
+
+  const out: PaymentChange[] = [];
+  byMerchant.forEach((months, merchantName) => {
+    const current = months.get(currentKey);
+    if (current == null) return;
+
+    const baselineValues: number[] = [];
+    for (const k of baselineKeys) {
+      const v = months.get(k);
+      if (v != null) baselineValues.push(v);
+    }
+    if (baselineValues.length === 0) return;
+
+    const baseline = baselineValues.reduce((a, b) => a + b, 0) / baselineValues.length;
+    const delta = current - baseline;
+
+    if (Math.abs(delta) < 10) return;
+    if (baseline > 0 && Math.abs(delta) / baseline < 0.1) return;
+
+    out.push({
+      merchantName,
+      currentAmount: current,
+      baselineAmount: baseline,
+      delta,
+      baselineMonthCount: baselineValues.length,
+    });
+  });
+
+  return out.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 }
 
 export function getTopMerchant(transactions: Transaction[]): MerchantData | null {
@@ -80,8 +147,8 @@ export function getMonthlyBreakdown(transactions: Transaction[], year: number): 
   ];
 
   const monthlyData = hebrewMonths.map((name, index) => {
-    const monthTransactions = transactions.filter(t => 
-      t.purchaseDate.getMonth() === index && t.purchaseDate.getFullYear() === year
+    const monthTransactions = transactions.filter(t =>
+      t.statementDate.getMonth() === index && t.statementDate.getFullYear() === year
     );
     return {
       month: name,
@@ -103,9 +170,9 @@ export function getMonthlyTrend(transactions: Transaction[], year: number): { mo
 export function findRecurrentPayments(transactions: Transaction[]): RecurrentPayment[] {
   const merchantMonthlyData = new Map<string, Map<string, number>>();
 
-  // Group transactions by merchant and month, SUMMING amounts
+  // Group transactions by merchant and statement-month, SUMMING amounts
   transactions.forEach(t => {
-    const monthKey = `${t.purchaseDate.getFullYear()}-${t.purchaseDate.getMonth() + 1}`;
+    const monthKey = `${t.statementDate.getFullYear()}-${t.statementDate.getMonth() + 1}`;
     
     if (!merchantMonthlyData.has(t.merchantName)) {
       merchantMonthlyData.set(t.merchantName, new Map());
@@ -170,9 +237,9 @@ export function filterTransactionsByPeriod(
   year: number
 ): Transaction[] {
   return transactions.filter(t => {
-    const tYear = t.purchaseDate.getFullYear();
-    const tMonth = t.purchaseDate.getMonth();
-    
+    const tYear = t.statementDate.getFullYear();
+    const tMonth = t.statementDate.getMonth();
+
     if (month === null) {
       return tYear === year;
     }
@@ -182,15 +249,15 @@ export function filterTransactionsByPeriod(
 
 export function getAvailableYears(transactions: Transaction[]): number[] {
   const years = new Set<number>();
-  transactions.forEach(t => years.add(t.purchaseDate.getFullYear()));
+  transactions.forEach(t => years.add(t.statementDate.getFullYear()));
   return Array.from(years).sort((a, b) => b - a);
 }
 
 export function getAvailableMonths(transactions: Transaction[], year: number): number[] {
   const months = new Set<number>();
   transactions
-    .filter(t => t.purchaseDate.getFullYear() === year)
-    .forEach(t => months.add(t.purchaseDate.getMonth()));
+    .filter(t => t.statementDate.getFullYear() === year)
+    .forEach(t => months.add(t.statementDate.getMonth()));
   return Array.from(months).sort((a, b) => a - b);
 }
 

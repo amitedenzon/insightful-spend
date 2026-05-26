@@ -10,10 +10,7 @@ import { DailyBarChart } from './charts/DailyBarChart';
 import { MonthlyPieChart } from './charts/MonthlyPieChart';
 import { TrendLineChart } from './charts/TrendLineChart';
 import { TransactionTable } from './TransactionTable';
-import { StandingOrdersList } from './StandingOrdersList';
-import { RecurrentPayments } from './RecurrentPayments';
 import { TopMerchants } from './TopMerchants';
-import { InstallmentsList } from './InstallmentsList';
 import { CategoryPieChart } from './charts/CategoryPieChart';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -34,12 +31,12 @@ import {
   getDailyBreakdown,
   getMonthlyBreakdown,
   getMonthlyTrend,
-  findRecurrentPayments,
   getTopMerchants,
   filterTransactionsByPeriod,
   getAvailableYears,
   getAvailableMonths,
   getCategoryBreakdown,
+  getRecurringMerchantNames,
 } from '@/utils/analytics';
 
 interface DashboardProps {
@@ -105,9 +102,14 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
     [filteredTransactions, daysInPeriod]
   );
 
-  const standingOrdersTotal = useMemo(() => 
-    calculateStandingOrdersTotal(filteredTransactions),
-    [filteredTransactions]
+  const recurringMerchants = useMemo(
+    () => getRecurringMerchantNames(transactions),
+    [transactions]
+  );
+
+  const standingOrdersTotal = useMemo(() =>
+    calculateStandingOrdersTotal(filteredTransactions, recurringMerchants),
+    [filteredTransactions, recurringMerchants]
   );
 
   // Chart data
@@ -136,12 +138,7 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
     [filteredTransactions]
   );
 
-  const recurrentPayments = useMemo(() => 
-    findRecurrentPayments(transactions),
-    [transactions]
-  );
-
-  const topMerchants = useMemo(() => 
+  const topMerchants = useMemo(() =>
     getTopMerchants(filteredTransactions, 6),
     [filteredTransactions]
   );
@@ -311,36 +308,6 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
             </ChartCard>
           </>
         )}
-      </div>
-
-      {/* Bottom Section: 3 Columns Equal Width */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <ChartCard 
-          title="הוראות קבע" 
-          subtitle="תשלומים קבועים שזוהו"
-          delay={350}
-        >
-          <StandingOrdersList transactions={filteredTransactions} />
-        </ChartCard>
-
-        <ChartCard 
-          title="תשלומים חוזרים" 
-          subtitle="בתי עסק עם חיובים דומים בכל חודש"
-          delay={400}
-        >
-          <RecurrentPayments payments={recurrentPayments} />
-        </ChartCard>
-
-        <ChartCard
-          title="פריסת תשלומים"
-          subtitle="מעקב אחרי עסקאות בתשלומים"
-          delay={450}
-        >
-          <InstallmentsList 
-            transactions={filteredTransactions} 
-            isYearlyView={viewMode !== 'month'}
-          />
-        </ChartCard>
       </div>
 
       {/* Transaction Table */}

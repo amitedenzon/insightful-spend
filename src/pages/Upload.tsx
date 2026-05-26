@@ -63,7 +63,7 @@ const Upload = ({ onFilesSelected, isLoading, transactionCount }: UploadProps) =
 
           {/* Instructions */}
           <div className="text-center text-sm text-muted-foreground">
-            <p>העלה קבצי CSV של דפי חשבון כרטיס אשראי</p>
+            <p>העלה קבצי CSV או Excel של דפי חשבון כרטיס אשראי</p>
             <p className="mt-1">תומך בפורמט דפי חשבון ישראליים</p>
           </div>
         </div>

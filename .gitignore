@@ -26,3 +26,7 @@ dist-ssr
 csv
 
 server/data/*.csv
+GEMINI_API_KEY.txt
+/GEMINI_API_KEY.txt
+./GEMINI_API_KEY.txt
+Bezbezni.app/

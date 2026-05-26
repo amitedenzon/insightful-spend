@@ -12,6 +12,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useState } from 'react';
+import { normalizeUploadedFiles } from '@/utils/xlsxToCsv';
+
+const ACCEPTED_EXTENSIONS = /\.(csv|xlsx?)$/i;
 
 interface FileUploadProps {
   onFilesSelected: (files: File[]) => void;
@@ -24,63 +27,50 @@ export function FileUpload({ onFilesSelected, isLoading }: FileUploadProps) {
   const handleClose = useCallback(() => {
     setSuccessCount(null);
   }, []);
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault();
-      const files = Array.from(e.dataTransfer.files).filter(
-        f => f.name.endsWith('.csv')
-      );
-      
-      if (files.length) {
-        // Upload to backend
-        const formData = new FormData();
-        files.forEach(file => formData.append('files', file));
-        
-        try {
-          await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-          });
-          setSuccessCount(files.length); // Show success popup
-          onFilesSelected(files);
-        } catch (error) {
-          console.error('Upload failed:', error);
-          // Still process locally even if upload fails? 
-          // For now, let's assume we want to process locally too to update UI immediately
-          // Maybe we don't show success popup if it "failed" technically, or maybe we do if local parsing works.
-          // Let's assume we only show popup if backend upload works.
-          onFilesSelected(files); 
-        }
+  const processFiles = useCallback(
+    async (rawFiles: File[]) => {
+      const accepted = rawFiles.filter(f => ACCEPTED_EXTENSIONS.test(f.name));
+      if (!accepted.length) return;
+
+      let files: File[];
+      try {
+        files = await normalizeUploadedFiles(accepted);
+      } catch (error) {
+        console.error('Failed to convert Excel file to CSV:', error);
+        return;
+      }
+
+      const formData = new FormData();
+      files.forEach(file => formData.append('files', file));
+
+      try {
+        await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        setSuccessCount(files.length);
+        onFilesSelected(files);
+      } catch (error) {
+        console.error('Upload failed:', error);
+        onFilesSelected(files);
       }
     },
     [onFilesSelected]
   );
 
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      await processFiles(Array.from(e.dataTransfer.files));
+    },
+    [processFiles]
+  );
+
   const handleFileInput = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files || []).filter(
-        f => f.name.endsWith('.csv')
-      );
-      
-      if (files.length) {
-         // Upload to backend
-        const formData = new FormData();
-        files.forEach(file => formData.append('files', file));
-        
-        try {
-          await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-          });
-          setSuccessCount(files.length); // Show success popup
-          onFilesSelected(files);
-        } catch (error) {
-           console.error('Upload failed:', error);
-           onFilesSelected(files);
-        }
-      }
+      await processFiles(Array.from(e.target.files || []));
     },
-    [onFilesSelected]
+    [processFiles]
   );
 
   return (
@@ -95,7 +85,7 @@ export function FileUpload({ onFilesSelected, isLoading }: FileUploadProps) {
     >
       <input
         type="file"
-        accept=".csv"
+        accept=".csv,.xlsx,.xls"
         multiple
         onChange={handleFileInput}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -119,7 +109,7 @@ export function FileUpload({ onFilesSelected, isLoading }: FileUploadProps) {
             {isLoading ? 'מעבד קבצים...' : 'העלה דפי חשבון'}
           </h3>
           <p className="text-muted-foreground">
-            גרור קבצי CSV או לחץ לבחירה
+            גרור קבצי CSV או Excel או לחץ לבחירה
           </p>
         </div>
 

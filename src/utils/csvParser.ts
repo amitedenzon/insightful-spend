@@ -80,9 +80,16 @@ export function parseCSV(csvContent: string): Transaction[] {
 
     const category = categorizeMerchant(merchantName, cleanedInfo);
 
+    // Statement date drives month-grouping: every row in this CSV belongs to the
+    // statement-file's due-date month. Fallback when no header date was detected:
+    // first-of-month of purchaseDate.
+    const rowStatementDate = statementDate
+      ?? new Date(purchaseDate.getFullYear(), purchaseDate.getMonth(), 1);
+
     const transaction: Transaction = {
       id: `${purchaseDate.toISOString()}-${merchantName}-${chargeAmount}-${i}`,
       purchaseDate,
+      statementDate: rowStatementDate,
       merchantName: merchantName?.trim() || 'לא ידוע',
       chargeAmount,
       currency: currency?.trim() || '₪',

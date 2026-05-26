@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { NavLink as RouterNavLink } from 'react-router-dom';
-import { 
-  Upload, 
-  BarChart3, 
-  ChevronLeft, 
-  ChevronRight, 
+import {
+  Upload,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
   Sun,
   Moon,
-  Database
+  Database,
+  Repeat,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -25,6 +26,7 @@ export function Sidebar({ className }: SidebarProps) {
   const navItems = [
     { to: '/upload', label: 'העלאת קבצים', icon: Upload },
     { to: '/monitor', label: 'מעקב הוצאות', icon: BarChart3 },
+    { to: '/recurring', label: 'תשלומים חוזרים', icon: Repeat },
     { to: '/data', label: 'ניהול נתונים', icon: Database },
   ];
 

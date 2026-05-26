@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Sidebar } from "@/components/Sidebar";
 import Upload from "@/pages/Upload";
 import Monitor from "@/pages/Monitor";
+import RecurringPaymentsPage from "@/pages/RecurringPayments";
 import DataManagement from "@/pages/DataManagement";
 import NotFound from "./pages/NotFound";
 import { Transaction } from '@/types/transaction';
@@ -56,14 +57,21 @@ const App = () => {
 
 
 
-  // Helper to apply overrides from localStorage
+  // Helper to apply overrides from localStorage.
+  // Merchant-level overrides take precedence (they reflect explicit user intent
+  // that "every transaction from this merchant belongs to category X").
+  // Per-id overrides remain as a fallback for any legacy data already saved.
   const applyCategoryOverrides = (txs: Transaction[]) => {
     try {
-      const saved = localStorage.getItem('category_overrides');
-      if (saved) {
-        const overrides = JSON.parse(saved);
-        return txs.map(t => overrides[t.id] ? { ...t, category: overrides[t.id] } : t);
-      }
+      const merchantSaved = localStorage.getItem('merchant_category_overrides');
+      const merchantOverrides: Record<string, string> = merchantSaved ? JSON.parse(merchantSaved) : {};
+      const idSaved = localStorage.getItem('category_overrides');
+      const idOverrides: Record<string, string> = idSaved ? JSON.parse(idSaved) : {};
+      return txs.map(t => {
+        if (merchantOverrides[t.merchantName]) return { ...t, category: merchantOverrides[t.merchantName] };
+        if (idOverrides[t.id]) return { ...t, category: idOverrides[t.id] };
+        return t;
+      });
     } catch (e) {
       console.error('Failed to load category overrides', e);
     }
@@ -72,18 +80,27 @@ const App = () => {
 
   const handleCategoryChange = useCallback((id: string, newCategory: string) => {
     setTransactions(prev => {
-      const updated = prev.map(t => t.id === id ? { ...t, category: newCategory } : t);
-      
-      // Save to localStorage
+      const target = prev.find(t => t.id === id);
+      const merchantName = target?.merchantName;
+
+      // A manual change for a single row is treated as a merchant-wide rule:
+      // every existing transaction from this merchant is recategorized, and
+      // the rule is persisted so future uploads inherit it too.
+      const updated = prev.map(t =>
+        merchantName && t.merchantName === merchantName ? { ...t, category: newCategory } : t
+      );
+
       try {
-        const saved = localStorage.getItem('category_overrides');
-        const overrides = saved ? JSON.parse(saved) : {};
-        overrides[id] = newCategory;
-        localStorage.setItem('category_overrides', JSON.stringify(overrides));
+        if (merchantName) {
+          const saved = localStorage.getItem('merchant_category_overrides');
+          const overrides = saved ? JSON.parse(saved) : {};
+          overrides[merchantName] = newCategory;
+          localStorage.setItem('merchant_category_overrides', JSON.stringify(overrides));
+        }
       } catch (e) {
-        console.error('Failed to save category override', e);
+        console.error('Failed to save merchant category override', e);
       }
-      
+
       return updated;
     });
   }, []);
@@ -97,16 +114,14 @@ const App = () => {
         return t;
       });
 
-      // Save overrides to localStorage (saving by ID for consistency)
+      // Persist merchant-level rules so they survive reloads and apply to future uploads.
       try {
-        const saved = localStorage.getItem('category_overrides');
+        const saved = localStorage.getItem('merchant_category_overrides');
         const overrides = saved ? JSON.parse(saved) : {};
-        updated.forEach(t => {
-           if (merchantCategoryMap.has(t.merchantName)) {
-             overrides[t.id] = t.category;
-           }
+        merchantCategoryMap.forEach((category, merchant) => {
+          overrides[merchant] = category;
         });
-        localStorage.setItem('category_overrides', JSON.stringify(overrides));
+        localStorage.setItem('merchant_category_overrides', JSON.stringify(overrides));
       } catch (e) {
         console.error('Failed to save batch overrides', e);
       }
@@ -159,9 +174,13 @@ const App = () => {
                       />
                     } 
                   />
-                  <Route 
-                    path="/monitor" 
-                    element={<Monitor transactions={transactions} onCategoryChange={handleCategoryChange} onBatchCategoryChange={handleBatchCategoryChange} />} 
+                  <Route
+                    path="/monitor"
+                    element={<Monitor transactions={transactions} onCategoryChange={handleCategoryChange} onBatchCategoryChange={handleBatchCategoryChange} />}
+                  />
+                  <Route
+                    path="/recurring"
+                    element={<RecurringPaymentsPage transactions={transactions} />}
                   />
                   <Route path="/data" element={<DataManagement />} />
                   <Route path="*" element={<NotFound />} />

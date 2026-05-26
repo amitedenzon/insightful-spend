@@ -6,7 +6,10 @@ interface DailyBarChartProps {
 }
 
 export function DailyBarChart({ data }: DailyBarChartProps) {
-  const maxAmount = Math.max(...data.map(d => d.amount));
+  // Net-negative days (refund-heavy) are clamped to 0 so the axis baseline
+  // stays at 0 and the visual stays a "daily spend" chart, not a net-flow chart.
+  const sanitized = data.map(d => ({ ...d, amount: Math.max(0, d.amount) }));
+  const maxAmount = Math.max(...sanitized.map(d => d.amount));
 
   if (maxAmount === 0) {
     return (
@@ -16,27 +19,38 @@ export function DailyBarChart({ data }: DailyBarChartProps) {
     );
   }
 
+  const formatTick = (v: number) => {
+    if (v >= 1000) {
+      const k = v / 1000;
+      return `₪${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}K`;
+    }
+    return `₪${v}`;
+  };
+
   return (
     <div className="h-[300px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-          <CartesianGrid 
-            strokeDasharray="3 3" 
-            stroke="hsl(var(--border))" 
+        <BarChart data={sanitized} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="hsl(var(--border))"
             vertical={false}
           />
-          <XAxis 
-            dataKey="date" 
+          <XAxis
+            dataKey="date"
             tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
             tickLine={false}
             axisLine={false}
             interval={2}
+            padding={{ left: 24, right: 8 }}
           />
-          <YAxis 
+          <YAxis
             tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(v) => `₪${(v/1000).toFixed(0)}K`}
+            tickFormatter={formatTick}
+            domain={[0, 'auto']}
+            allowDataOverflow={false}
             width={55}
           />
           <Tooltip
@@ -53,8 +67,8 @@ export function DailyBarChart({ data }: DailyBarChartProps) {
             ]}
             labelFormatter={(label) => `יום ${label}`}
           />
-          <Bar 
-            dataKey="amount" 
+          <Bar
+            dataKey="amount"
             fill="hsl(var(--primary))"
             radius={[4, 4, 0, 0]}
             maxBarSize={30}

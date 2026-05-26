@@ -1,6 +1,7 @@
 export interface Transaction {
   id: string;
   purchaseDate: Date;
+  statementDate: Date;
   merchantName: string;
   chargeAmount: number;
   currency: string;
@@ -44,6 +45,14 @@ export interface RecurrentPayment {
   averageAmount: number;
   months: string[];
   frequency: number;
+}
+
+export interface PaymentChange {
+  merchantName: string;
+  currentAmount: number;
+  baselineAmount: number;
+  delta: number;
+  baselineMonthCount: number;
 }
 
 export type ViewMode = 'month' | 'year';

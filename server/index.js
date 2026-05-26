@@ -4,6 +4,7 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { GoogleGenAI, Type } from '@google/genai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -93,24 +94,70 @@ app.delete('/api/files/:filename', (req, res) => {
     res.status(500).json({ error: 'Failed to delete file' });
   }
 });
-// Ollama Proxy
-app.post('/api/ollama', async (req, res) => {
-  try {
-    const response = await fetch('http://localhost:11434/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body),
-    });
+// Gemini classification endpoint
+const geminiKeyPath = path.join(__dirname, '..', 'GEMINI_API_KEY.txt');
+const geminiApiKey = fs.existsSync(geminiKeyPath)
+  ? fs.readFileSync(geminiKeyPath, 'utf-8').trim()
+  : process.env.GEMINI_API_KEY;
 
-    if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.statusText}`);
+if (!geminiApiKey) {
+  console.warn('GEMINI_API_KEY not found in GEMINI_API_KEY.txt or env — /api/classify will fail');
+}
+
+const genai = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
+
+app.post('/api/classify', async (req, res) => {
+  try {
+    if (!genai) {
+      return res.status(500).json({ error: 'Gemini API key not configured' });
+    }
+    const { merchants, categories } = req.body;
+    if (!Array.isArray(merchants) || !Array.isArray(categories)) {
+      return res.status(400).json({ error: 'merchants and categories must be arrays' });
     }
 
-    const data = await response.json();
-    res.json(data);
+    const systemInstruction = `You classify Hebrew/English merchant names from Israeli credit-card statements into one of these spending categories:
+
+${categories.map(c => `- ${c}`).join('\n')}
+
+Rules:
+1. Pick exactly one category from the list above for each merchant.
+2. Use the category "אחר" only when no other category clearly applies.
+3. Output a JSON array of {merchant, category} objects, one per input merchant. The merchant value must be copied EXACTLY from the input (including any quotes or punctuation).`;
+
+    const response = await genai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `Classify these merchants:\n${JSON.stringify(merchants)}`,
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              merchant: { type: Type.STRING },
+              category: { type: Type.STRING, enum: categories },
+            },
+            required: ['merchant', 'category'],
+          },
+        },
+      },
+    });
+
+    const pairs = JSON.parse(response.text);
+    const mapping = {};
+    if (Array.isArray(pairs)) {
+      for (const p of pairs) {
+        if (p && typeof p.merchant === 'string' && typeof p.category === 'string') {
+          mapping[p.merchant] = p.category;
+        }
+      }
+    }
+    res.json({ mapping, usage: response.usageMetadata });
   } catch (error) {
-    console.error('Ollama Proxy Error:', error);
-    res.status(500).json({ error: 'Failed to communicate with AI service' });
+    console.error('Classify error:', error);
+    res.status(500).json({ error: error.message || 'Failed to classify merchants' });
   }
 });
 

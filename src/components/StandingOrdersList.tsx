@@ -4,10 +4,13 @@ import { cn } from '@/lib/utils';
 
 interface StandingOrdersListProps {
   transactions: Transaction[];
+  recurringMerchants?: Set<string>;
 }
 
-export function StandingOrdersList({ transactions }: StandingOrdersListProps) {
-  const standingOrders = transactions.filter(t => t.isStandingOrder);
+export function StandingOrdersList({ transactions, recurringMerchants }: StandingOrdersListProps) {
+  const standingOrders = transactions.filter(
+    t => t.isStandingOrder || (recurringMerchants?.has(t.merchantName) ?? false)
+  );
   
   // Group by merchant
   const grouped = standingOrders.reduce((acc, t) => {
