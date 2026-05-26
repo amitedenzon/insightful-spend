@@ -346,16 +346,6 @@ export function getYearOverYearMonthly(
   return { lastYearAmount, delta, percentDelta };
 }
 
-// Top N single biggest charges in the given (already filtered) transactions.
-export function getLargestTransactions(
-  transactions: Transaction[],
-  limit: number = 5
-): Transaction[] {
-  return [...transactions]
-    .sort((a, b) => b.chargeAmount - a.chargeAmount)
-    .slice(0, limit);
-}
-
 // Distribute a single monthly budget across categories by fitting a linear
 // regression on each category's monthly totals over the last 12 statement
 // months strictly before (refYear, refMonth). Predict next month's value per

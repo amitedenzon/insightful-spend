@@ -12,7 +12,6 @@ import { TrendLineChart } from './charts/TrendLineChart';
 import { TransactionTable } from './TransactionTable';
 import { TopMerchants } from './TopMerchants';
 import { BudgetProgress } from './BudgetProgress';
-import { LargestTransactions } from './LargestTransactions';
 import { useMonthlyBudget } from '@/utils/budgets';
 import { CategoryPieChart } from './charts/CategoryPieChart';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -49,7 +48,6 @@ import {
   getRecurringMerchantNames,
   getCategorySpending,
   forecastMonthlyTotal,
-  getLargestTransactions,
   projectCategoryBudgets,
 } from '@/utils/analytics';
 
@@ -208,11 +206,6 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
       percentDelta: (delta / lastYearAmount) * 100,
     };
   }, [filteredTransactions, transactions, selectedMonth, selectedYear, selectedCategory, viewMode]);
-
-  const largestTransactions = useMemo(
-    () => getLargestTransactions(filteredTransactions, 5),
-    [filteredTransactions]
-  );
 
   const periodLabel = viewMode === 'month'
     ? `${HEBREW_MONTHS[selectedMonth]} ${selectedYear}`
@@ -433,15 +426,6 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
           </>
         )}
       </div>
-
-      {/* Largest single transactions */}
-      <ChartCard
-        title="עסקאות גדולות"
-        subtitle="5 העסקאות הבודדות הגדולות בתקופה"
-        delay={350}
-      >
-        <LargestTransactions transactions={largestTransactions} />
-      </ChartCard>
 
       {/* Transaction Table */}
       <TransactionTable
