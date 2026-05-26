@@ -5,7 +5,6 @@ interface MetricCardProps {
   title: string;
   value: string | number;
   subtitle?: string;
-  footer?: ReactNode;
   icon?: ReactNode;
   variant?: 'default' | 'spending' | 'savings' | 'primary';
   delay?: number;
@@ -15,7 +14,6 @@ export function MetricCard({
   title,
   value,
   subtitle,
-  footer,
   icon,
   variant = 'default',
   delay = 0
@@ -61,11 +59,6 @@ export function MetricCard({
             <p className="text-sm text-muted-foreground mt-1 truncate">
               {subtitle}
             </p>
-          )}
-          {footer && (
-            <div className="mt-2 text-sm text-muted-foreground space-y-0.5">
-              {footer}
-            </div>
           )}
         </div>
         {icon && (

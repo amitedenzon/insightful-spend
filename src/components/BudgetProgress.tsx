@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { Target, AlertTriangle } from 'lucide-react';
 import { CATEGORIES } from '@/utils/categories';
 import { cn } from '@/lib/utils';
@@ -7,6 +6,7 @@ interface BudgetProgressProps {
   budgets: Record<string, number>;
   categorySpending: Map<string, number>;
   monthlyBudgetTotal: number;
+  periodLabel?: string;
 }
 
 const formatILS = (n: number) =>
@@ -16,86 +16,67 @@ const formatILS = (n: number) =>
     maximumFractionDigits: 0,
   });
 
-export function BudgetProgress({ budgets, categorySpending, monthlyBudgetTotal }: BudgetProgressProps) {
+export function BudgetProgress({
+  budgets,
+  categorySpending,
+  monthlyBudgetTotal,
+  periodLabel,
+}: BudgetProgressProps) {
   const entries = Object.entries(budgets).sort((a, b) => b[1] - a[1]);
 
-  // Two distinct empty states: the user never set a total, vs they set one but
-  // there's no history yet to distribute it across.
+  // Two distinct empty states: no total set, vs total set but no history to distribute across.
   if (monthlyBudgetTotal <= 0) {
     return (
-      <div className="flex items-center justify-between gap-4 p-6 bg-card border border-dashed border-border rounded-2xl">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <Target className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="font-medium text-foreground">לא הוגדר תקציב חודשי</p>
-            <p className="text-sm text-muted-foreground truncate">
-              קבע תקציב חודשי כדי לעקוב אחרי ההוצאות שלך
-            </p>
-          </div>
+      <div className="flex items-center gap-4 p-6 bg-card border border-dashed border-border rounded-2xl">
+        <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+          <Target className="h-5 w-5" />
         </div>
-        <Link
-          to="/budgets"
-          className="text-sm font-medium text-primary hover:underline whitespace-nowrap"
-        >
-          הגדר תקציב ←
-        </Link>
+        <div className="min-w-0">
+          <p className="font-medium text-foreground">לא הוגדר תקציב חודשי</p>
+          <p className="text-sm text-muted-foreground">
+            קבע סכום למעלה כדי לראות חלוקה אוטומטית והתקדמות
+          </p>
+        </div>
       </div>
     );
   }
 
   if (entries.length === 0) {
     return (
-      <div className="flex items-center justify-between gap-4 p-6 bg-card border border-dashed border-border rounded-2xl">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <Target className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="font-medium text-foreground">אין מספיק היסטוריה לחלוקה</p>
-            <p className="text-sm text-muted-foreground truncate">
-              העלה עוד דפי חשבון כדי שהמערכת תוכל לחלק את התקציב לקטגוריות
-            </p>
-          </div>
+      <div className="flex items-center gap-4 p-6 bg-card border border-dashed border-border rounded-2xl">
+        <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+          <Target className="h-5 w-5" />
         </div>
-        <Link
-          to="/budgets"
-          className="text-sm font-medium text-primary hover:underline whitespace-nowrap"
-        >
-          ערוך תקציב
-        </Link>
+        <div className="min-w-0">
+          <p className="font-medium text-foreground">אין מספיק היסטוריה לחלוקה</p>
+          <p className="text-sm text-muted-foreground">
+            העלה עוד דפי חשבון כדי שהמערכת תוכל לחלק את התקציב לקטגוריות
+          </p>
+        </div>
       </div>
     );
   }
 
   const totalBudget = monthlyBudgetTotal;
-  const totalSpent = entries.reduce(
-    (sum, [cat]) => sum + (categorySpending.get(cat) || 0),
-    0
-  );
+  // Sum across ALL categories that had any spending — not only allocated
+  // ones — so this number matches the dashboard's "total expenses" tile.
+  const totalSpent = Array.from(categorySpending.values()).reduce((a, b) => a + b, 0);
   const totalPercent = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-6 space-y-5 animate-slide-up">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <Target className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-semibold text-foreground">תקציב חודשי</h3>
-            <p className="text-sm text-muted-foreground truncate">
-              {formatILS(totalSpent)} מתוך {formatILS(totalBudget)}
-            </p>
-          </div>
+    <div className="space-y-5">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+          <Target className="h-5 w-5" />
         </div>
-        <Link
-          to="/budgets"
-          className="text-sm font-medium text-primary hover:underline whitespace-nowrap"
-        >
-          ערוך
-        </Link>
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold text-foreground">
+            {periodLabel ? `התקדמות ב${periodLabel}` : 'התקדמות'}
+          </h3>
+          <p className="text-sm text-muted-foreground truncate">
+            {formatILS(totalSpent)} מתוך {formatILS(totalBudget)} ({totalPercent.toFixed(0)}%)
+          </p>
+        </div>
       </div>
 
       <ProgressBar percent={totalPercent} />

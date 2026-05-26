@@ -286,66 +286,6 @@ export function getCategorySpending(transactions: Transaction[]): Map<string, nu
   return map;
 }
 
-// Project end-of-month total based on pace within the given statement period.
-// "As of" is derived from the latest purchaseDate that falls within the
-// statement's calendar month, so this works for the latest statement the user
-// has uploaded even when today's calendar date is past it. Returns null when
-// there's no room to project (latest purchase already at month-end) or no
-// purchases fall inside the statement's calendar month.
-export function forecastMonthlyTotal(
-  transactions: Transaction[],
-  year: number,
-  month: number
-): number | null {
-  if (transactions.length === 0) return null;
-
-  let total = 0;
-  let latestDayInMonth = 0;
-  for (const t of transactions) {
-    total += t.chargeAmount;
-    if (
-      t.purchaseDate.getFullYear() === year &&
-      t.purchaseDate.getMonth() === month &&
-      t.purchaseDate.getDate() > latestDayInMonth
-    ) {
-      latestDayInMonth = t.purchaseDate.getDate();
-    }
-  }
-  if (total <= 0 || latestDayInMonth <= 0) return null;
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  if (latestDayInMonth >= daysInMonth) return null;
-
-  return (total / latestDayInMonth) * daysInMonth;
-}
-
-export interface YoYComparison {
-  lastYearAmount: number;
-  delta: number;
-  percentDelta: number;
-}
-
-// Compare spending in the selected month vs the same month last year.
-// Returns null when there are no transactions for the same month last year.
-export function getYearOverYearMonthly(
-  allTransactions: Transaction[],
-  currentMonth: number,
-  currentYear: number,
-  currentAmount: number
-): YoYComparison | null {
-  const prior = allTransactions.filter(
-    t =>
-      t.statementDate.getFullYear() === currentYear - 1 &&
-      t.statementDate.getMonth() === currentMonth
-  );
-  if (prior.length === 0) return null;
-
-  const lastYearAmount = prior.reduce((sum, t) => sum + t.chargeAmount, 0);
-  const delta = currentAmount - lastYearAmount;
-  const percentDelta = lastYearAmount > 0 ? (delta / lastYearAmount) * 100 : 0;
-  return { lastYearAmount, delta, percentDelta };
-}
-
 // Distribute a single monthly budget across categories by fitting a linear
 // regression on each category's monthly totals over the last 12 statement
 // months strictly before (refYear, refMonth). Predict next month's value per

@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, ReferenceLine, Label } from 'recharts';
 import { DailyData } from '@/types/transaction';
 
 interface DailyBarChartProps {
@@ -11,6 +11,13 @@ export function DailyBarChart({ data, onDayClick }: DailyBarChartProps) {
   // stays at 0 and the visual stays a "daily spend" chart, not a net-flow chart.
   const sanitized = data.map(d => ({ ...d, amount: Math.max(0, d.amount) }));
   const maxAmount = Math.max(...sanitized.map(d => d.amount));
+
+  // Average across days that had spending — averaging over zero-spend days
+  // (e.g., future days in the current month) would understate the typical day.
+  const spendDays = sanitized.filter(d => d.amount > 0);
+  const dailyAverage = spendDays.length > 0
+    ? spendDays.reduce((s, d) => s + d.amount, 0) / spendDays.length
+    : 0;
 
   if (maxAmount === 0) {
     return (
@@ -82,6 +89,22 @@ export function DailyBarChart({ data, onDayClick }: DailyBarChartProps) {
             maxBarSize={30}
             cursor={onDayClick ? 'pointer' : undefined}
           />
+          {dailyAverage > 0 && (
+            <ReferenceLine
+              y={dailyAverage}
+              stroke="hsl(var(--muted-foreground))"
+              strokeDasharray="4 4"
+              strokeWidth={1.5}
+              ifOverflow="extendDomain"
+            >
+              <Label
+                value={`ממוצע יומי ${formatTick(dailyAverage)}`}
+                position="insideTopRight"
+                fill="hsl(var(--muted-foreground))"
+                fontSize={10}
+              />
+            </ReferenceLine>
+          )}
         </BarChart>
       </ResponsiveContainer>
     </div>

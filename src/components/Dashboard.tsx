@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CreditCard, TrendingDown, TrendingUp, Calendar, Store, Repeat, Wallet, Receipt } from 'lucide-react';
+import { CreditCard, TrendingDown, Calendar, Store, Repeat, Wallet } from 'lucide-react';
 import { Transaction, ViewMode } from '@/types/transaction';
 import { MetricCard } from './MetricCard';
 import { ViewToggle } from './ViewToggle';
@@ -11,8 +11,6 @@ import { MonthlyPieChart } from './charts/MonthlyPieChart';
 import { TrendLineChart } from './charts/TrendLineChart';
 import { TransactionTable } from './TransactionTable';
 import { TopMerchants } from './TopMerchants';
-import { BudgetProgress } from './BudgetProgress';
-import { useMonthlyBudget } from '@/utils/budgets';
 import { CategoryPieChart } from './charts/CategoryPieChart';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -46,9 +44,6 @@ import {
   getAvailableMonths,
   getCategoryBreakdown,
   getRecurringMerchantNames,
-  getCategorySpending,
-  forecastMonthlyTotal,
-  projectCategoryBudgets,
 } from '@/utils/analytics';
 
 interface DashboardProps {
@@ -156,57 +151,6 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
     [filteredTransactions]
   );
 
-  const { total: monthlyBudgetTotal } = useMonthlyBudget();
-
-  const categorySpending = useMemo(
-    () => getCategorySpending(filteredTransactions),
-    [filteredTransactions]
-  );
-
-  // Derive per-category budget amounts from the single total and history.
-  // Categories never spent on in the lookback simply get no allocation
-  // (BudgetProgress hides them).
-  const projectedBudgets = useMemo(
-    () =>
-      projectCategoryBudgets(
-        transactions,
-        monthlyBudgetTotal,
-        selectedYear,
-        selectedMonth
-      ),
-    [transactions, monthlyBudgetTotal, selectedYear, selectedMonth]
-  );
-
-  // Forecast applies the filtered slice (matches the metric value when a
-  // category filter is active). Monthly view only.
-  const forecastTotal = useMemo(() => {
-    if (viewMode !== 'month') return null;
-    return forecastMonthlyTotal(filteredTransactions, selectedYear, selectedMonth);
-  }, [filteredTransactions, selectedYear, selectedMonth, viewMode]);
-
-  // YoY compares this period's filtered slice to last year's same-month slice
-  // under the same category filter. Inline (rather than going through the
-  // analytics helper) so the comparison set respects the active filter.
-  const yoy = useMemo(() => {
-    if (viewMode !== 'month') return null;
-    const lastYear = transactions.filter(
-      t =>
-        t.statementDate.getFullYear() === selectedYear - 1 &&
-        t.statementDate.getMonth() === selectedMonth &&
-        (selectedCategory === 'all' || t.category === selectedCategory)
-    );
-    if (lastYear.length === 0) return null;
-    const lastYearAmount = lastYear.reduce((s, t) => s + t.chargeAmount, 0);
-    if (lastYearAmount <= 0) return null;
-    const currentAmount = filteredTransactions.reduce((s, t) => s + t.chargeAmount, 0);
-    const delta = currentAmount - lastYearAmount;
-    return {
-      lastYearAmount,
-      delta,
-      percentDelta: (delta / lastYearAmount) * 100,
-    };
-  }, [filteredTransactions, transactions, selectedMonth, selectedYear, selectedCategory, viewMode]);
-
   const periodLabel = viewMode === 'month'
     ? `${HEBREW_MONTHS[selectedMonth]} ${selectedYear}`
     : `שנת ${selectedYear}`;
@@ -258,50 +202,6 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
           icon={<CreditCard className="h-6 w-6" />}
           variant="spending"
           delay={0}
-          footer={
-            (forecastTotal != null || yoy != null) ? (
-              <>
-                {forecastTotal != null && (
-                  <p className="truncate">
-                    צפי לסוף חודש:{' '}
-                    <span className="font-medium text-foreground tabular-nums">
-                      {forecastTotal.toLocaleString('he-IL', {
-                        style: 'currency',
-                        currency: 'ILS',
-                        maximumFractionDigits: 0,
-                      })}
-                    </span>
-                  </p>
-                )}
-                {yoy != null && (
-                  <p className="flex items-center gap-1 truncate">
-                    <span>שנה שעברה:</span>
-                    <span className="font-medium text-foreground tabular-nums">
-                      {yoy.lastYearAmount.toLocaleString('he-IL', {
-                        style: 'currency',
-                        currency: 'ILS',
-                        maximumFractionDigits: 0,
-                      })}
-                    </span>
-                    <span
-                      className={
-                        yoy.delta >= 0
-                          ? 'text-destructive flex items-center gap-0.5'
-                          : 'text-emerald-600 flex items-center gap-0.5'
-                      }
-                    >
-                      {yoy.delta >= 0 ? (
-                        <TrendingUp className="h-3.5 w-3.5" />
-                      ) : (
-                        <TrendingDown className="h-3.5 w-3.5" />
-                      )}
-                      {`${yoy.delta >= 0 ? '+' : ''}${yoy.percentDelta.toFixed(0)}%`}
-                    </span>
-                  </p>
-                )}
-              </>
-            ) : undefined
-          }
         />
         <MetricCard
           title="ממוצע יומי"
@@ -319,15 +219,6 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
           delay={100}
         />
       </div>
-
-      {/* Budget Progress (monthly view only) */}
-      {viewMode === 'month' && (
-        <BudgetProgress
-          budgets={Object.fromEntries(projectedBudgets)}
-          categorySpending={categorySpending}
-          monthlyBudgetTotal={monthlyBudgetTotal}
-        />
-      )}
 
       {/* Main Charts & Top Merchants Row */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
