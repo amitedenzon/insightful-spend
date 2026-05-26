@@ -286,26 +286,37 @@ export function getCategorySpending(transactions: Transaction[]): Map<string, nu
   return map;
 }
 
-// Project end-of-month spending based on current pace. Returns null when:
-// - viewing a past month (already complete — no forecast needed)
-// - viewing a future month
-// - the selected month has zero days elapsed (e.g. mid-month switch with no data)
+// Project end-of-month total based on pace within the given statement period.
+// "As of" is derived from the latest purchaseDate that falls within the
+// statement's calendar month, so this works for the latest statement the user
+// has uploaded even when today's calendar date is past it. Returns null when
+// there's no room to project (latest purchase already at month-end) or no
+// purchases fall inside the statement's calendar month.
 export function forecastMonthlyTotal(
-  filteredTotal: number,
+  transactions: Transaction[],
   year: number,
-  month: number,
-  asOf: Date = new Date()
+  month: number
 ): number | null {
-  const isCurrentMonth =
-    asOf.getFullYear() === year && asOf.getMonth() === month;
-  if (!isCurrentMonth) return null;
+  if (transactions.length === 0) return null;
+
+  let total = 0;
+  let latestDayInMonth = 0;
+  for (const t of transactions) {
+    total += t.chargeAmount;
+    if (
+      t.purchaseDate.getFullYear() === year &&
+      t.purchaseDate.getMonth() === month &&
+      t.purchaseDate.getDate() > latestDayInMonth
+    ) {
+      latestDayInMonth = t.purchaseDate.getDate();
+    }
+  }
+  if (total <= 0 || latestDayInMonth <= 0) return null;
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const dayOfMonth = asOf.getDate();
-  if (dayOfMonth <= 0 || filteredTotal <= 0) return null;
-  if (dayOfMonth >= daysInMonth) return null;
+  if (latestDayInMonth >= daysInMonth) return null;
 
-  return (filteredTotal / dayOfMonth) * daysInMonth;
+  return (total / latestDayInMonth) * daysInMonth;
 }
 
 export interface YoYComparison {
@@ -343,4 +354,85 @@ export function getLargestTransactions(
   return [...transactions]
     .sort((a, b) => b.chargeAmount - a.chargeAmount)
     .slice(0, limit);
+}
+
+// Distribute a single monthly budget across categories by fitting a linear
+// regression on each category's monthly totals over the last 12 statement
+// months strictly before (refYear, refMonth). Predict next month's value per
+// category, normalize to shares, multiply by `total`.
+//
+// Sparse categories (< 3 nonzero months) fall back to their plain mean — a
+// regression on 1-2 nonzero points overfits to noise. Predictions are clipped
+// at 0 so a long downtrend doesn't produce a negative allocation.
+export function projectCategoryBudgets(
+  allTransactions: Transaction[],
+  total: number,
+  refYear: number,
+  refMonth: number,
+  lookbackMonths: number = 12
+): Map<string, number> {
+  const out = new Map<string, number>();
+  if (total <= 0) return out;
+
+  // Build the lookback window: lookbackMonths consecutive statement-months
+  // ending just before the reference month.
+  const monthKeys: string[] = [];
+  for (let i = lookbackMonths; i >= 1; i--) {
+    const d = new Date(refYear, refMonth - i, 1);
+    monthKeys.push(`${d.getFullYear()}-${d.getMonth()}`);
+  }
+  const monthIndex = new Map<string, number>();
+  monthKeys.forEach((k, i) => monthIndex.set(k, i));
+
+  // Per-category, per-month-index totals.
+  const series = new Map<string, number[]>();
+  for (const t of allTransactions) {
+    const k = `${t.statementDate.getFullYear()}-${t.statementDate.getMonth()}`;
+    const idx = monthIndex.get(k);
+    if (idx == null) continue;
+    const cat = t.category || 'אחר';
+    if (!series.has(cat)) series.set(cat, new Array(monthKeys.length).fill(0));
+    series.get(cat)![idx] += t.chargeAmount;
+  }
+
+  if (series.size === 0) return out;
+
+  // For each category, predict the next-month value.
+  const predictions = new Map<string, number>();
+  series.forEach((ys, cat) => {
+    const n = ys.length;
+    const nonzero = ys.filter(v => v > 0).length;
+    let next: number;
+
+    if (nonzero < 3) {
+      // Too few points for regression — use the mean of all months (zeros
+      // included), since infrequent categories should get smaller shares.
+      next = ys.reduce((a, b) => a + b, 0) / n;
+    } else {
+      // Ordinary least-squares fit of y over x = 0..n-1.
+      const xs = ys.map((_, i) => i);
+      const meanX = xs.reduce((a, b) => a + b, 0) / n;
+      const meanY = ys.reduce((a, b) => a + b, 0) / n;
+      let num = 0;
+      let den = 0;
+      for (let i = 0; i < n; i++) {
+        num += (xs[i] - meanX) * (ys[i] - meanY);
+        den += (xs[i] - meanX) ** 2;
+      }
+      const slope = den === 0 ? 0 : num / den;
+      const intercept = meanY - slope * meanX;
+      // Predict at x = n (next month after the lookback window).
+      next = Math.max(0, slope * n + intercept);
+    }
+
+    if (next > 0) predictions.set(cat, next);
+  });
+
+  const sum = Array.from(predictions.values()).reduce((a, b) => a + b, 0);
+  if (sum <= 0) return out;
+
+  predictions.forEach((v, k) => {
+    out.set(k, (v / sum) * total);
+  });
+  return out;
 }

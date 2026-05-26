@@ -1,47 +1,37 @@
 import { useEffect, useState, useCallback } from 'react';
 
-const STORAGE_KEY = 'category_budgets';
+const STORAGE_KEY = 'monthly_budget_total';
 
-export type CategoryBudgets = Record<string, number>;
-
-function readBudgets(): CategoryBudgets {
+function readTotal(): number {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object') {
-      const out: CategoryBudgets = {};
-      for (const [k, v] of Object.entries(parsed)) {
-        const n = typeof v === 'number' ? v : Number(v);
-        if (Number.isFinite(n) && n > 0) out[k] = n;
-      }
-      return out;
-    }
+    if (!raw) return 0;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
   } catch (e) {
-    console.error('Failed to read budgets', e);
+    console.error('Failed to read budget total', e);
+    return 0;
   }
-  return {};
 }
 
-function writeBudgets(budgets: CategoryBudgets) {
+function writeTotal(total: number) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(budgets));
+    if (total > 0) localStorage.setItem(STORAGE_KEY, String(total));
+    else localStorage.removeItem(STORAGE_KEY);
     window.dispatchEvent(new Event('budgets-changed'));
   } catch (e) {
-    console.error('Failed to save budgets', e);
+    console.error('Failed to save budget total', e);
   }
 }
 
-export function useBudgets(): {
-  budgets: CategoryBudgets;
-  setBudget: (category: string, amount: number | null) => void;
-  setAll: (budgets: CategoryBudgets) => void;
-  totalBudget: number;
+export function useMonthlyBudget(): {
+  total: number;
+  setTotal: (n: number) => void;
 } {
-  const [budgets, setBudgets] = useState<CategoryBudgets>(() => readBudgets());
+  const [total, setTotalState] = useState<number>(() => readTotal());
 
   useEffect(() => {
-    const refresh = () => setBudgets(readBudgets());
+    const refresh = () => setTotalState(readTotal());
     window.addEventListener('budgets-changed', refresh);
     window.addEventListener('storage', refresh);
     return () => {
@@ -50,25 +40,11 @@ export function useBudgets(): {
     };
   }, []);
 
-  const setBudget = useCallback((category: string, amount: number | null) => {
-    setBudgets(prev => {
-      const next = { ...prev };
-      if (amount == null || !Number.isFinite(amount) || amount <= 0) {
-        delete next[category];
-      } else {
-        next[category] = amount;
-      }
-      writeBudgets(next);
-      return next;
-    });
+  const setTotal = useCallback((n: number) => {
+    const clean = Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+    writeTotal(clean);
+    setTotalState(clean);
   }, []);
 
-  const setAll = useCallback((next: CategoryBudgets) => {
-    setBudgets(next);
-    writeBudgets(next);
-  }, []);
-
-  const totalBudget = Object.values(budgets).reduce((sum, n) => sum + n, 0);
-
-  return { budgets, setBudget, setAll, totalBudget };
+  return { total, setTotal };
 }

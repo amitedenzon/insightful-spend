@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom';
 import { Target, AlertTriangle } from 'lucide-react';
 import { CATEGORIES } from '@/utils/categories';
-import { CategoryBudgets } from '@/utils/budgets';
 import { cn } from '@/lib/utils';
 
 interface BudgetProgressProps {
-  budgets: CategoryBudgets;
+  budgets: Record<string, number>;
   categorySpending: Map<string, number>;
+  monthlyBudgetTotal: number;
 }
 
 const formatILS = (n: number) =>
@@ -16,10 +16,12 @@ const formatILS = (n: number) =>
     maximumFractionDigits: 0,
   });
 
-export function BudgetProgress({ budgets, categorySpending }: BudgetProgressProps) {
+export function BudgetProgress({ budgets, categorySpending, monthlyBudgetTotal }: BudgetProgressProps) {
   const entries = Object.entries(budgets).sort((a, b) => b[1] - a[1]);
 
-  if (entries.length === 0) {
+  // Two distinct empty states: the user never set a total, vs they set one but
+  // there's no history yet to distribute it across.
+  if (monthlyBudgetTotal <= 0) {
     return (
       <div className="flex items-center justify-between gap-4 p-6 bg-card border border-dashed border-border rounded-2xl">
         <div className="flex items-center gap-3 min-w-0">
@@ -27,9 +29,9 @@ export function BudgetProgress({ budgets, categorySpending }: BudgetProgressProp
             <Target className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <p className="font-medium text-foreground">לא הוגדרו תקציבים</p>
+            <p className="font-medium text-foreground">לא הוגדר תקציב חודשי</p>
             <p className="text-sm text-muted-foreground truncate">
-              הגדר תקציב חודשי לכל קטגוריה כדי לעקוב אחרי ההוצאות שלך
+              קבע תקציב חודשי כדי לעקוב אחרי ההוצאות שלך
             </p>
           </div>
         </div>
@@ -43,7 +45,31 @@ export function BudgetProgress({ budgets, categorySpending }: BudgetProgressProp
     );
   }
 
-  const totalBudget = entries.reduce((sum, [, b]) => sum + b, 0);
+  if (entries.length === 0) {
+    return (
+      <div className="flex items-center justify-between gap-4 p-6 bg-card border border-dashed border-border rounded-2xl">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <Target className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium text-foreground">אין מספיק היסטוריה לחלוקה</p>
+            <p className="text-sm text-muted-foreground truncate">
+              העלה עוד דפי חשבון כדי שהמערכת תוכל לחלק את התקציב לקטגוריות
+            </p>
+          </div>
+        </div>
+        <Link
+          to="/budgets"
+          className="text-sm font-medium text-primary hover:underline whitespace-nowrap"
+        >
+          ערוך תקציב
+        </Link>
+      </div>
+    );
+  }
+
+  const totalBudget = monthlyBudgetTotal;
   const totalSpent = entries.reduce(
     (sum, [cat]) => sum + (categorySpending.get(cat) || 0),
     0
