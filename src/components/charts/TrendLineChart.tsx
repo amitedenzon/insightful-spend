@@ -81,12 +81,12 @@ export function TrendLineChart({ data }: TrendLineChartProps) {
               ifOverflow="extendDomain"
             >
               <Label
-                value={`ממוצע חודשי ${Math.round(monthlyAverage).toLocaleString('he-IL', {
+                value={Math.round(monthlyAverage).toLocaleString('he-IL', {
                   style: 'currency',
                   currency: 'ILS',
                   maximumFractionDigits: 0,
-                })}`}
-                position="insideTopLeft"
+                })}
+                position="top"
                 fill="hsl(var(--muted-foreground))"
                 fontSize={10}
               />
