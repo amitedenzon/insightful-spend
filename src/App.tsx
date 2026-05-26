@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,35 +13,60 @@ import DataManagement from "@/pages/DataManagement";
 import NotFound from "./pages/NotFound";
 import { Transaction } from '@/types/transaction';
 import { parseMultipleCSVs } from '@/utils/csvParser';
+import { CATEGORIES } from '@/utils/categories';
+import { categorizeTransactionsWithAI } from '@/utils/ai';
+import { toast } from 'sonner';
 
 const queryClient = new QueryClient();
+
+// Scraped transactions arrive as JSON with ISO strings; revive Date fields.
+type RawTransaction = Omit<Transaction, 'purchaseDate' | 'statementDate'> & {
+  purchaseDate: string;
+  statementDate: string;
+};
+const hydrateScraped = (raw: RawTransaction[]): Transaction[] =>
+  raw.map(t => ({
+    ...t,
+    purchaseDate: new Date(t.purchaseDate),
+    statementDate: new Date(t.statementDate),
+  }));
+
+const mergeUnique = (existing: Transaction[], incoming: Transaction[]) => {
+  const seen = new Set<string>();
+  const combined = [...incoming, ...existing];
+  return combined.filter(t => {
+    if (seen.has(t.id)) return false;
+    seen.add(t.id);
+    return true;
+  });
+};
+
+// Apply localStorage overrides. Merchant-level wins over per-id.
+const applyCategoryOverrides = (txs: Transaction[]): Transaction[] => {
+  try {
+    const merchantSaved = localStorage.getItem('merchant_category_overrides');
+    const merchantOverrides: Record<string, string> = merchantSaved ? JSON.parse(merchantSaved) : {};
+    const idSaved = localStorage.getItem('category_overrides');
+    const idOverrides: Record<string, string> = idSaved ? JSON.parse(idSaved) : {};
+    return txs.map(t => {
+      if (merchantOverrides[t.merchantName]) return { ...t, category: merchantOverrides[t.merchantName] };
+      if (idOverrides[t.id]) return { ...t, category: idOverrides[t.id] };
+      return t;
+    });
+  } catch (e) {
+    console.error('Failed to load category overrides', e);
+    return txs;
+  }
+};
 
 const App = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Use useEffect for side effects
-  
-  const [mounted, setMounted] = useState(false);
-
-  // Scraped transactions arrive as JSON with ISO strings; revive Date fields
-  // and run them through the same category-override pipeline as CSV rows.
-  const hydrateScraped = (raw: any[]): Transaction[] =>
-    raw.map(t => ({
-      ...t,
-      purchaseDate: new Date(t.purchaseDate),
-      statementDate: new Date(t.statementDate),
-    }));
-
-  const mergeUnique = (existing: Transaction[], incoming: Transaction[]) => {
-    const seen = new Set<string>();
-    const combined = [...incoming, ...existing];
-    return combined.filter(t => {
-      if (seen.has(t.id)) return false;
-      seen.add(t.id);
-      return true;
-    });
-  };
+  // Tracks whether the background AI auto-labeler has already run this session.
+  // Without this guard the effect would re-fire every time `transactions`
+  // changes (e.g. when the user reclassifies a row) and spam the classify API.
+  const autoLabeledRef = useRef(false);
 
   const loadScraped = useCallback(async () => {
     try {
@@ -79,28 +104,85 @@ const App = () => {
     loadScraped();
   }, [loadScraped]);
 
-
-
-  // Helper to apply overrides from localStorage.
-  // Merchant-level overrides take precedence (they reflect explicit user intent
-  // that "every transaction from this merchant belongs to category X").
-  // Per-id overrides remain as a fallback for any legacy data already saved.
-  const applyCategoryOverrides = (txs: Transaction[]) => {
-    try {
-      const merchantSaved = localStorage.getItem('merchant_category_overrides');
-      const merchantOverrides: Record<string, string> = merchantSaved ? JSON.parse(merchantSaved) : {};
-      const idSaved = localStorage.getItem('category_overrides');
-      const idOverrides: Record<string, string> = idSaved ? JSON.parse(idSaved) : {};
-      return txs.map(t => {
-        if (merchantOverrides[t.merchantName]) return { ...t, category: merchantOverrides[t.merchantName] };
-        if (idOverrides[t.id]) return { ...t, category: idOverrides[t.id] };
+  const handleBatchCategoryChange = useCallback((merchantCategoryMap: Map<string, string>) => {
+    setTransactions(prev => {
+      const updated = prev.map(t => {
+        if (merchantCategoryMap.has(t.merchantName)) {
+          return { ...t, category: merchantCategoryMap.get(t.merchantName)! };
+        }
         return t;
       });
-    } catch (e) {
-      console.error('Failed to load category overrides', e);
-    }
-    return txs;
-  };
+
+      // Persist merchant-level rules so they survive reloads and apply to future uploads.
+      try {
+        const saved = localStorage.getItem('merchant_category_overrides');
+        const overrides = saved ? JSON.parse(saved) : {};
+        merchantCategoryMap.forEach((category, merchant) => {
+          overrides[merchant] = category;
+        });
+        localStorage.setItem('merchant_category_overrides', JSON.stringify(overrides));
+      } catch (e) {
+        console.error('Failed to save batch overrides', e);
+      }
+
+      return updated;
+    });
+  }, []);
+
+  // Background AI auto-labeler. Runs once per session as soon as we have any
+  // transactions. Targets only merchants currently sitting in OTHER (i.e. the
+  // rule-based categorizer couldn't place them) and that don't already have a
+  // user-set merchant override — we never want AI to overwrite explicit intent.
+  useEffect(() => {
+    if (autoLabeledRef.current) return;
+    if (transactions.length === 0) return;
+    autoLabeledRef.current = true;
+
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        const merchantSaved = localStorage.getItem('merchant_category_overrides');
+        const merchantOverrides: Record<string, string> = merchantSaved ? JSON.parse(merchantSaved) : {};
+
+        const candidates = new Map<string, Transaction>();
+        for (const t of transactions) {
+          if (t.category !== CATEGORIES.OTHER) continue;
+          if (merchantOverrides[t.merchantName]) continue;
+          if (!candidates.has(t.merchantName)) candidates.set(t.merchantName, t);
+        }
+        if (candidates.size === 0) return;
+
+        const mapping = await categorizeTransactionsWithAI(Array.from(candidates.values()));
+        if (cancelled || mapping.size === 0) return;
+
+        // Drop any AI guess that just re-confirms OTHER — no point persisting
+        // a rule that doesn't actually change anything.
+        const useful = new Map<string, string>();
+        mapping.forEach((cat, merchant) => {
+          if (cat && cat !== CATEGORIES.OTHER) useful.set(merchant, cat);
+        });
+        if (useful.size === 0) return;
+
+        handleBatchCategoryChange(useful);
+        toast.success(`סווגו אוטומטית ${useful.size} בתי עסק`, {
+          description: 'התווית האוטומטית פעלה ברקע על קטגוריית "אחר"',
+        });
+      } catch (e) {
+        // Silent failure: the manual "AI sort" button in the table is still available.
+        console.error('Background AI labeling failed', e);
+      }
+    };
+
+    // Slight delay so the initial render finishes and the user sees the data
+    // before any toast pops. 1.5s is enough to settle the layout without
+    // feeling laggy.
+    const t = window.setTimeout(run, 1500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [transactions, handleBatchCategoryChange]);
 
   const handleCategoryChange = useCallback((id: string, newCategory: string) => {
     setTransactions(prev => {
@@ -129,45 +211,11 @@ const App = () => {
     });
   }, []);
 
-  const handleBatchCategoryChange = useCallback((merchantCategoryMap: Map<string, string>) => {
-    setTransactions(prev => {
-      const updated = prev.map(t => {
-        if (merchantCategoryMap.has(t.merchantName)) {
-          return { ...t, category: merchantCategoryMap.get(t.merchantName)! };
-        }
-        return t;
-      });
-
-      // Persist merchant-level rules so they survive reloads and apply to future uploads.
-      try {
-        const saved = localStorage.getItem('merchant_category_overrides');
-        const overrides = saved ? JSON.parse(saved) : {};
-        merchantCategoryMap.forEach((category, merchant) => {
-          overrides[merchant] = category;
-        });
-        localStorage.setItem('merchant_category_overrides', JSON.stringify(overrides));
-      } catch (e) {
-        console.error('Failed to save batch overrides', e);
-      }
-
-      return updated;
-    });
-  }, []);
-
   const handleFilesSelected = useCallback(async (files: File[]) => {
     setIsLoading(true);
     try {
       const parsed = await parseMultipleCSVs(files);
-      setTransactions(prev => {
-        const combined = [...parsed, ...prev];
-        const seen = new Set<string>();
-        const unique = combined.filter(t => {
-          if (seen.has(t.id)) return false;
-          seen.add(t.id);
-          return true;
-        });
-        return applyCategoryOverrides(unique);
-      });
+      setTransactions(prev => applyCategoryOverrides(mergeUnique(prev, parsed)));
     } catch (error) {
       console.error('Error parsing CSV files:', error);
     } finally {
@@ -183,13 +231,12 @@ const App = () => {
         <BrowserRouter>
           <div className="min-h-screen bg-background flex" dir="rtl">
             <Sidebar />
-            <main className="flex-1 overflow-auto h-screen w-full"> 
-               {/* Wrapped in a container for max-width consistency if needed */}
-               <div className="container mx-auto px-4 py-8">
+            <main className="flex-1 overflow-auto h-screen w-full">
+               <div className="mx-auto w-full max-w-[1600px] px-6 py-8">
                 <Routes>
                   <Route path="/" element={<Navigate to="/upload" replace />} />
-                  <Route 
-                    path="/upload" 
+                  <Route
+                    path="/upload"
                     element={
                       <Upload
                         onFilesSelected={handleFilesSelected}
@@ -197,7 +244,7 @@ const App = () => {
                         transactionCount={transactions.length}
                         onSync={loadScraped}
                       />
-                    } 
+                    }
                   />
                   <Route
                     path="/monitor"

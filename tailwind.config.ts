@@ -15,6 +15,7 @@ export default {
     extend: {
       fontFamily: {
         rubik: ["Rubik", "sans-serif"],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'monospace'],
       },
       colors: {
         border: "hsl(var(--border))",

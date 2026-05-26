@@ -15,7 +15,7 @@ const Monitor = ({ transactions, onCategoryChange, onBatchCategoryChange }: Moni
 
   if (transactions.length === 0) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center space-y-4">
           <FileQuestion className="h-16 w-16 mx-auto text-muted-foreground" />
           <h2 className="text-2xl font-bold text-foreground">אין נתונים להצגה</h2>
@@ -29,11 +29,7 @@ const Monitor = ({ transactions, onCategoryChange, onBatchCategoryChange }: Moni
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8">
-        <Dashboard transactions={transactions} onCategoryChange={onCategoryChange} onBatchCategoryChange={onBatchCategoryChange} />
-      </main>
-    </div>
+    <Dashboard transactions={transactions} onCategoryChange={onCategoryChange} onBatchCategoryChange={onBatchCategoryChange} />
   );
 };
 

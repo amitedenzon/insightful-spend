@@ -1,65 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
-
 @layer base {
   :root {
-    /* Core Colors - Elegant Slate Base */
-    --background: 220 20% 97%;
+    /* Core - off-white background for easier reading vs pure white */
+    --background: 220 24% 98%;
     --foreground: 222 47% 11%;
 
-    /* Card with subtle warmth */
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
 
-    /* Popover */
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    /* Primary - Deep Indigo */
-    --primary: 239 84% 67%;
+    /* Primary - calmer indigo for less marketing-y feel */
+    --primary: 237 64% 60%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary - Soft Slate */
     --secondary: 220 14% 96%;
     --secondary-foreground: 222 47% 11%;
 
-    /* Muted */
     --muted: 220 14% 96%;
     --muted-foreground: 220 9% 46%;
 
-    /* Accent */
     --accent: 220 14% 96%;
     --accent-foreground: 222 47% 11%;
 
-    /* Semantic Colors */
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
-    
-    /* Financial Specific */
-    --spending: 350 89% 60%;
+
+    /* Financial palette - slightly desaturated for a code-vibe */
+    --spending: 350 70% 55%;
     --spending-foreground: 0 0% 100%;
-    --savings: 160 84% 39%;
+    --savings: 160 65% 38%;
     --savings-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
+    --warning: 38 88% 50%;
     --warning-foreground: 0 0% 100%;
 
-    /* Chart Colors */
-    --chart-1: 239 84% 67%;
-    --chart-2: 160 84% 39%;
-    --chart-3: 350 89% 60%;
-    --chart-4: 38 92% 50%;
-    --chart-5: 280 65% 60%;
-    --chart-6: 200 80% 55%;
+    /* Chart palette */
+    --chart-1: 237 64% 60%;
+    --chart-2: 160 65% 38%;
+    --chart-3: 350 70% 55%;
+    --chart-4: 38 88% 50%;
+    --chart-5: 280 50% 58%;
+    --chart-6: 200 70% 50%;
 
-    /* Borders & Inputs */
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 239 84% 67%;
+    --border: 220 14% 90%;
+    --input: 220 14% 90%;
+    --ring: 237 64% 60%;
 
-    --radius: 0.75rem;
+    --radius: 0.625rem;
 
     /* Sidebar */
     --sidebar-background: 222 47% 11%;
@@ -80,37 +73,38 @@
   }
 
   .dark {
-    --background: 222 47% 6%;
-    --foreground: 220 20% 97%;
+    /* Deep slate background like a modern code editor */
+    --background: 222 32% 7%;
+    --foreground: 220 20% 95%;
 
-    --card: 222 47% 9%;
-    --card-foreground: 220 20% 97%;
+    --card: 222 28% 10%;
+    --card-foreground: 220 20% 95%;
 
-    --popover: 222 47% 9%;
-    --popover-foreground: 220 20% 97%;
+    --popover: 222 28% 10%;
+    --popover-foreground: 220 20% 95%;
 
-    --primary: 239 84% 67%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 237 70% 70%;
+    --primary-foreground: 222 47% 11%;
 
-    --secondary: 222 47% 15%;
-    --secondary-foreground: 220 20% 97%;
+    --secondary: 222 24% 16%;
+    --secondary-foreground: 220 20% 95%;
 
-    --muted: 222 47% 15%;
-    --muted-foreground: 220 9% 60%;
+    --muted: 222 24% 16%;
+    --muted-foreground: 220 12% 62%;
 
-    --accent: 222 47% 15%;
-    --accent-foreground: 220 20% 97%;
+    --accent: 222 24% 16%;
+    --accent-foreground: 220 20% 95%;
 
-    --destructive: 0 62% 45%;
+    --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --spending: 350 89% 55%;
-    --savings: 160 84% 45%;
-    --warning: 38 92% 55%;
+    --spending: 350 70% 60%;
+    --savings: 160 60% 48%;
+    --warning: 38 88% 58%;
 
-    --border: 222 47% 18%;
-    --input: 222 47% 18%;
-    --ring: 239 84% 67%;
+    --border: 222 24% 18%;
+    --input: 222 24% 18%;
+    --ring: 237 70% 70%;
 
     --sidebar-background: 222 47% 4%;
     --sidebar-foreground: 220 20% 97%;

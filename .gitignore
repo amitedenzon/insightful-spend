@@ -28,6 +28,7 @@ csv
 server/data/*.csv
 server/data/scraped/
 server/data/.puppeteer-isracard/
+server/data/csv-archive/
 .env
 .env.*
 !.env.example

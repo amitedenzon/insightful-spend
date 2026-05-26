@@ -76,7 +76,7 @@ export function FileUpload({ onFilesSelected, isLoading }: FileUploadProps) {
   return (
     <div
       className={cn(
-        "relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300",
+        "relative border-2 border-dashed rounded-xl p-10 text-center transition-all duration-300",
         "border-border hover:border-primary/50 hover:bg-primary/5",
         "group cursor-pointer"
       )}
@@ -94,8 +94,8 @@ export function FileUpload({ onFilesSelected, isLoading }: FileUploadProps) {
       
       <div className="flex flex-col items-center gap-4">
         <div className={cn(
-          "w-20 h-20 rounded-2xl flex items-center justify-center transition-all duration-300",
-          "bg-primary/10 group-hover:bg-primary/20 group-hover:scale-110"
+          "w-16 h-16 rounded-xl flex items-center justify-center transition-all duration-300",
+          "bg-primary/10 group-hover:bg-primary/20 group-hover:scale-105"
         )}>
           {isLoading ? (
             <FileSpreadsheet className="w-10 h-10 text-primary animate-pulse-soft" />

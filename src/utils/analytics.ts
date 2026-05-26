@@ -1,4 +1,5 @@
 import { Transaction, WeeklyData, DailyData, MerchantData, RecurrentPayment, PaymentChange } from '@/types/transaction';
+import { isBudgetableCategory } from './categories';
 
 // Income (salary, refunds, credits) lands as a negative chargeAmount — the
 // bank-account scraper flips the sign on credits and CSV statements only
@@ -300,10 +301,17 @@ export function getCategoryBreakdown(transactions: Transaction[]): { name: strin
 }
 
 // Sum spending per category for the given (already filtered) transactions.
-export function getCategorySpending(transactions: Transaction[]): Map<string, number> {
+// `budgetableOnly` strips investments etc — pass true when feeding the budget
+// progress bars so the "total spent" number lines up with the per-category
+// bars and doesn't include money that's just being moved into savings.
+export function getCategorySpending(
+  transactions: Transaction[],
+  budgetableOnly = false,
+): Map<string, number> {
   const map = new Map<string, number>();
   for (const t of expensesOnly(transactions)) {
     const cat = t.category || 'אחר';
+    if (budgetableOnly && !isBudgetableCategory(cat)) continue;
     map.set(cat, (map.get(cat) || 0) + t.chargeAmount);
   }
   return map;
@@ -339,12 +347,16 @@ export function projectCategoryBudgets(
 
   // Per-category, per-month-index totals. Income excluded so a recurring
   // paycheck doesn't show up as a "category" the budget gets allocated to.
+  // Non-budgetable categories (investments) are excluded too — they are
+  // "moving money" rather than "spending money" and should not eat into
+  // the budget the user actually planned for living expenses.
   const series = new Map<string, number[]>();
   for (const t of expensesOnly(allTransactions)) {
+    const cat = t.category || 'אחר';
+    if (!isBudgetableCategory(cat)) continue;
     const k = `${t.statementDate.getFullYear()}-${t.statementDate.getMonth()}`;
     const idx = monthIndex.get(k);
     if (idx == null) continue;
-    const cat = t.category || 'אחר';
     if (!series.has(cat)) series.set(cat, new Array(monthKeys.length).fill(0));
     series.get(cat)![idx] += t.chargeAmount;
   }

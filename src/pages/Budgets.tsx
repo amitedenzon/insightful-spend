@@ -65,10 +65,13 @@ const BudgetsPage = ({ transactions = [] }: BudgetsPageProps) => {
   }, [transactions, draftTotal, latestPeriod]);
 
   // Actual spending in the latest month, by category — for the live progress bars.
+  // budgetableOnly: investments are tracked separately and shouldn't roll up
+  // into "total spent vs total budget".
   const currentMonthSpending = useMemo(() => {
     if (!latestPeriod) return new Map<string, number>();
     return getCategorySpending(
-      filterTransactionsByPeriod(transactions, latestPeriod.month, latestPeriod.year)
+      filterTransactionsByPeriod(transactions, latestPeriod.month, latestPeriod.year),
+      true,
     );
   }, [transactions, latestPeriod]);
 
@@ -82,23 +85,21 @@ const BudgetsPage = ({ transactions = [] }: BudgetsPageProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-            <Target className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">תקציב חודשי</h1>
-            <p className="text-muted-foreground mt-1">
-              קבע תקציב כולל לחודש – החלוקה לקטגוריות נגזרת אוטומטית מ-12 החודשים האחרונים
-            </p>
-          </div>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+          <Target className="h-6 w-6" />
         </div>
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">תקציב חודשי</h1>
+          <p className="text-muted-foreground mt-1">
+            קבע תקציב כולל לחודש – החלוקה לקטגוריות נגזרת אוטומטית מ-12 החודשים האחרונים. השקעות לא נכללות בתקציב.
+          </p>
+        </div>
+      </div>
 
         {/* Budget total input */}
-        <div className="bg-card border border-border rounded-2xl p-6 space-y-3">
+        <div className="bg-card border border-border rounded-xl p-6 space-y-3">
           <label className="block text-sm font-medium text-foreground" htmlFor="budget-total">
             תקציב חודשי כולל
           </label>
@@ -128,7 +129,7 @@ const BudgetsPage = ({ transactions = [] }: BudgetsPageProps) => {
         </div>
 
         {/* Allocation + live progress */}
-        <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
+        <div className="bg-card border border-border rounded-xl p-6 space-y-5">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
             <h2 className="font-semibold text-foreground">חלוקה אוטומטית והתקדמות</h2>
@@ -151,7 +152,6 @@ const BudgetsPage = ({ transactions = [] }: BudgetsPageProps) => {
             />
           )}
         </div>
-      </main>
     </div>
   );
 };

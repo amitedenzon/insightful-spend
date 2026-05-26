@@ -72,7 +72,7 @@ const RecurringPaymentsPage = ({ transactions }: RecurringPaymentsPageProps) => 
 
   if (transactions.length === 0) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center space-y-4">
           <FileQuestion className="h-16 w-16 mx-auto text-muted-foreground" />
           <h2 className="text-2xl font-bold text-foreground">אין נתונים להצגה</h2>
@@ -90,70 +90,68 @@ const RecurringPaymentsPage = ({ transactions }: RecurringPaymentsPageProps) => 
     : `שנת ${selectedYear}`;
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">תשלומים חוזרים</h1>
-            <p className="text-muted-foreground mt-1">{periodLabel}</p>
-          </div>
-          <div className="flex items-center gap-4 flex-wrap">
-            <PeriodSelector
-              viewMode={viewMode}
-              selectedYear={selectedYear}
-              selectedMonth={selectedMonth}
-              availableYears={availableYears}
-              availableMonths={availableMonths}
-              onYearChange={setSelectedYear}
-              onMonthChange={setSelectedMonth}
-            />
-            <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">תשלומים חוזרים</h1>
+          <p className="text-muted-foreground mt-1 font-mono text-sm">{periodLabel}</p>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <ChartCard
-            title="הוראות קבע"
-            subtitle="תשלומים קבועים שזוהו"
-            delay={0}
-          >
-            <StandingOrdersList
-              transactions={filteredTransactions}
-              recurringMerchants={recurringMerchants}
-            />
-          </ChartCard>
-
-          <ChartCard
-            title="תשלומים חוזרים"
-            subtitle="בתי עסק עם חיובים דומים בכל חודש"
-            delay={50}
-          >
-            <RecurrentPayments payments={recurrentPayments} />
-          </ChartCard>
-
-          <ChartCard
-            title="פריסת תשלומים"
-            subtitle="מעקב אחרי עסקאות בתשלומים"
-            delay={100}
-          >
-            <InstallmentsList
-              transactions={filteredTransactions}
-              isYearlyView={viewMode !== 'month'}
-            />
-          </ChartCard>
-
-          <ChartCard
-            title="תשלומים שהשתנו"
-            subtitle="הפרשים מהממוצע של החודשים האחרונים"
-            delay={150}
-          >
-            <PaymentChanges
-              changes={paymentChanges}
-              disabled={viewMode !== 'month'}
-            />
-          </ChartCard>
+        <div className="flex items-center gap-3 flex-wrap">
+          <PeriodSelector
+            viewMode={viewMode}
+            selectedYear={selectedYear}
+            selectedMonth={selectedMonth}
+            availableYears={availableYears}
+            availableMonths={availableMonths}
+            onYearChange={setSelectedYear}
+            onMonthChange={setSelectedMonth}
+          />
+          <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
         </div>
-      </main>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ChartCard
+          title="הוראות קבע"
+          subtitle="תשלומים קבועים שזוהו"
+          delay={0}
+        >
+          <StandingOrdersList
+            transactions={filteredTransactions}
+            recurringMerchants={recurringMerchants}
+          />
+        </ChartCard>
+
+        <ChartCard
+          title="תשלומים חוזרים"
+          subtitle="בתי עסק עם חיובים דומים בכל חודש"
+          delay={50}
+        >
+          <RecurrentPayments payments={recurrentPayments} />
+        </ChartCard>
+
+        <ChartCard
+          title="פריסת תשלומים"
+          subtitle="מעקב אחרי עסקאות בתשלומים"
+          delay={100}
+        >
+          <InstallmentsList
+            transactions={filteredTransactions}
+            isYearlyView={viewMode !== 'month'}
+          />
+        </ChartCard>
+
+        <ChartCard
+          title="תשלומים שהשתנו"
+          subtitle="הפרשים מהממוצע של החודשים האחרונים"
+          delay={150}
+        >
+          <PaymentChanges
+            changes={paymentChanges}
+            disabled={viewMode !== 'month'}
+          />
+        </ChartCard>
+      </div>
     </div>
   );
 };

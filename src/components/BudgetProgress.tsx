@@ -27,8 +27,8 @@ export function BudgetProgress({
   // Two distinct empty states: no total set, vs total set but no history to distribute across.
   if (monthlyBudgetTotal <= 0) {
     return (
-      <div className="flex items-center gap-4 p-6 bg-card border border-dashed border-border rounded-2xl">
-        <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+      <div className="flex items-center gap-4 p-6 bg-card border border-dashed border-border rounded-xl">
+        <div className="w-10 h-10 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
           <Target className="h-5 w-5" />
         </div>
         <div className="min-w-0">
@@ -43,8 +43,8 @@ export function BudgetProgress({
 
   if (entries.length === 0) {
     return (
-      <div className="flex items-center gap-4 p-6 bg-card border border-dashed border-border rounded-2xl">
-        <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+      <div className="flex items-center gap-4 p-6 bg-card border border-dashed border-border rounded-xl">
+        <div className="w-10 h-10 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
           <Target className="h-5 w-5" />
         </div>
         <div className="min-w-0">

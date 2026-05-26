@@ -16,61 +16,68 @@ export function MetricCard({
   subtitle,
   icon,
   variant = 'default',
-  delay = 0
+  delay = 0,
 }: MetricCardProps) {
-  const variantStyles = {
-    default: 'bg-card border-border',
-    spending: 'bg-gradient-to-br from-spending/10 to-spending/5 border-spending/20',
-    savings: 'bg-gradient-to-br from-savings/10 to-savings/5 border-savings/20',
-    primary: 'bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20',
-  };
+  // Subtle left-edge accent rather than full-card gradients. Reads as a clean
+  // code-editor swatch instead of a colored marketing tile.
+  const accent = {
+    default: 'before:bg-muted-foreground/30',
+    spending: 'before:bg-spending',
+    savings: 'before:bg-savings',
+    primary: 'before:bg-primary',
+  }[variant];
 
-  const valueStyles = {
+  // Values stay neutral — the accent bar already conveys variant. Only the
+  // spending tile gets a touch of color so the headline expense number reads
+  // at a glance.
+  const valueColor = {
     default: 'text-foreground',
+    spending: 'text-spending',
+    savings: 'text-foreground',
+    primary: 'text-foreground',
+  }[variant];
+
+  const iconColor = {
+    default: 'text-muted-foreground',
     spending: 'text-spending',
     savings: 'text-savings',
     primary: 'text-primary',
-  };
+  }[variant];
 
   return (
-    <div 
+    <div
       className={cn(
-        "rounded-2xl border p-6 transition-all duration-300 hover-lift animate-slide-up",
-        variantStyles[variant]
+        'relative bg-card border border-border rounded-xl p-5 animate-slide-up',
+        'before:absolute before:top-4 before:bottom-4 before:right-0 before:w-[3px] before:rounded-l-full',
+        accent
       )}
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-muted-foreground mb-1">
+          <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
             {title}
           </p>
-          <p className={cn(
-            "text-3xl font-bold tracking-tight truncate",
-            valueStyles[variant]
-          )}>
-            {typeof value === 'number' ? value.toLocaleString('he-IL', { 
-              style: 'currency', 
-              currency: 'ILS',
-              maximumFractionDigits: 0 
-            }) : value}
+          <p
+            className={cn(
+              'text-3xl font-semibold tracking-tight tabular-nums truncate',
+              valueColor
+            )}
+          >
+            {typeof value === 'number'
+              ? value.toLocaleString('he-IL', {
+                  style: 'currency',
+                  currency: 'ILS',
+                  maximumFractionDigits: 0,
+                })
+              : value}
           </p>
           {subtitle && (
-            <p className="text-sm text-muted-foreground mt-1 truncate">
-              {subtitle}
-            </p>
+            <p className="text-xs text-muted-foreground mt-1.5 truncate">{subtitle}</p>
           )}
         </div>
         {icon && (
-          <div className={cn(
-            "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
-            variant === 'spending' && 'bg-spending/20 text-spending',
-            variant === 'savings' && 'bg-savings/20 text-savings',
-            variant === 'primary' && 'bg-primary/20 text-primary',
-            variant === 'default' && 'bg-muted text-muted-foreground'
-          )}>
-            {icon}
-          </div>
+          <div className={cn('shrink-0', iconColor)}>{icon}</div>
         )}
       </div>
     </div>

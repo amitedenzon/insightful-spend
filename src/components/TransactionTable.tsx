@@ -26,7 +26,6 @@ type SortField = 'date' | 'merchant' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
 export function TransactionTable({ transactions, onCategoryChange, onBatchCategoryChange }: TransactionTableProps) {
-  console.log('TransactionTable rendering with', transactions.length, 'transactions');
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -108,7 +107,7 @@ export function TransactionTable({ transactions, onCategoryChange, onBatchCatego
   };
 
   return (
-    <div className="bg-card border border-border rounded-2xl overflow-hidden animate-slide-up" style={{ animationDelay: '400ms' }}>
+    <div className="bg-card border border-border rounded-xl overflow-hidden animate-slide-up" style={{ animationDelay: '400ms' }}>
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-4">
           <div className="relative flex-1">
@@ -158,7 +157,7 @@ export function TransactionTable({ transactions, onCategoryChange, onBatchCatego
         </div>
       </div>
 
-      <div className="overflow-auto max-h-[400px]">
+      <div className="overflow-auto max-h-[520px]">
         <Table>
           <TableHeader className="sticky top-0 bg-card z-10">
             <TableRow>

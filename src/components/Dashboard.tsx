@@ -153,10 +153,10 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">מעקב הוצאות</h1>
-          <p className="text-muted-foreground mt-1">{periodLabel}</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">מעקב הוצאות</h1>
+          <p className="text-muted-foreground mt-1 font-mono text-sm">{periodLabel}</p>
         </div>
-        <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
              <SelectTrigger className="w-[220px] bg-background">
               <div className="flex items-center gap-2">
@@ -192,7 +192,7 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
         <MetricCard
           title="סה״כ הוצאות"
           value={totalSpending}
-          icon={<CreditCard className="h-6 w-6" />}
+          icon={<CreditCard className="h-5 w-5" />}
           variant="spending"
           delay={0}
         />
@@ -206,39 +206,39 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
                 ? 'זיכוי אחד'
                 : `${incomeCount} זיכויים`
           }
-          icon={<TrendingUp className="h-6 w-6" />}
+          icon={<TrendingUp className="h-5 w-5" />}
           variant="primary"
           delay={50}
         />
         <MetricCard
           title="הוראות קבע"
           value={standingOrdersTotal}
-          icon={<Repeat className="h-6 w-6" />}
+          icon={<Repeat className="h-5 w-5" />}
           variant="savings"
           delay={100}
         />
       </div>
 
-      {/* Main Charts & Top Merchants Row */}
+      {/* Main charts row. 12-col grid: the main time series chart gets 7
+          columns (was 6), the pie gets 3, and top-merchants/biggest deals
+          slides to its own full-width row below for breathing room. */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Top Merchants (25%) */}
-        <ChartCard 
-          title="בתי עסק מובילים" 
-          subtitle="6 בתי העסק עם ההוצאות הגבוהות ביותר"
-          delay={200}
-          className="lg:col-span-3"
-        >
-          <TopMerchants merchants={topMerchants} />
-        </ChartCard>
-
         {viewMode === 'month' ? (
           <>
-            {/* Pie Chart (25%) with Toggle */}
-            <ChartCard 
-              title={pieMode === 'time' ? "התפלגות שבועית" : "התפלגות לפי קטגוריה"}
-              subtitle={pieMode === 'time' ? "הוצאות לפי שבוע בחודש" : "הוצאות לפי סוג"}
+            <ChartCard
+              title="הוצאות יומיות"
+              subtitle="פעילות יומית לאורך החודש"
               delay={250}
-              className="lg:col-span-3"
+              className="lg:col-span-8"
+            >
+              <DailyBarChart data={dailyData} onDayClick={setSelectedDay} />
+            </ChartCard>
+
+            <ChartCard
+              title={pieMode === 'time' ? 'התפלגות שבועית' : 'התפלגות לפי קטגוריה'}
+              subtitle={pieMode === 'time' ? 'הוצאות לפי שבוע בחודש' : 'הוצאות לפי סוג'}
+              delay={300}
+              className="lg:col-span-4"
               action={
                 <Tabs value={pieMode} onValueChange={(v) => setPieMode(v as 'time' | 'category')} className="w-[100px]">
                   <TabsList className="grid w-full grid-cols-2 h-8">
@@ -251,31 +251,29 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
               {pieMode === 'time' ? (
                 <WeeklyPieChart data={weeklyData} />
               ) : (
-                <CategoryPieChart 
+                <CategoryPieChart
                   data={categoryData}
                   onCategoryClick={(category) => setSelectedCategory(category)}
                 />
               )}
             </ChartCard>
-            
-            {/* Daily Bar (50%) */}
-            <ChartCard 
-              title="הוצאות יומיות" 
-              subtitle="פעילות יומית לאורך החודש"
-              delay={300}
-              className="lg:col-span-6"
-            >
-              <DailyBarChart data={dailyData} onDayClick={setSelectedDay} />
-            </ChartCard>
           </>
         ) : (
           <>
-            {/* Pie Chart (25%) with Toggle */}
-            <ChartCard 
-              title={pieMode === 'time' ? "התפלגות חודשית" : "התפלגות לפי קטגוריה"}
-              subtitle={pieMode === 'time' ? "הוצאות לפי חודש (לחץ למעבר)" : "הוצאות לפי סוג"}
+            <ChartCard
+              title="מגמת הוצאות"
+              subtitle="התפתחות ההוצאות לאורך השנה"
               delay={250}
-              className="lg:col-span-3"
+              className="lg:col-span-8"
+            >
+              <TrendLineChart data={trendData} />
+            </ChartCard>
+
+            <ChartCard
+              title={pieMode === 'time' ? 'התפלגות חודשית' : 'התפלגות לפי קטגוריה'}
+              subtitle={pieMode === 'time' ? 'הוצאות לפי חודש (לחץ למעבר)' : 'הוצאות לפי סוג'}
+              delay={300}
+              className="lg:col-span-4"
               action={
                 <Tabs value={pieMode} onValueChange={(v) => setPieMode(v as 'time' | 'category')} className="w-[100px]">
                   <TabsList className="grid w-full grid-cols-2 h-8">
@@ -286,8 +284,8 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
               }
             >
               {pieMode === 'time' ? (
-                <MonthlyPieChart 
-                  data={monthlyData} 
+                <MonthlyPieChart
+                  data={monthlyData}
                   onMonthClick={(monthName) => {
                     const monthIndex = HEBREW_MONTHS.indexOf(monthName);
                     if (monthIndex !== -1) {
@@ -297,25 +295,25 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
                   }}
                 />
               ) : (
-                <CategoryPieChart 
+                <CategoryPieChart
                   data={categoryData}
                   onCategoryClick={(category) => setSelectedCategory(category)}
                 />
               )}
             </ChartCard>
-
-            {/* Trend Line (50%) */}
-            <ChartCard 
-              title="מגמת הוצאות" 
-              subtitle="התפתחות ההוצאות לאורך השנה"
-              delay={300}
-              className="lg:col-span-6"
-            >
-              <TrendLineChart data={trendData} />
-            </ChartCard>
           </>
         )}
       </div>
+
+      {/* Top merchants gets its own row — previously squeezed at 25% width,
+          which truncated names and made the bars look stubby. */}
+      <ChartCard
+        title="בתי עסק מובילים"
+        subtitle="6 בתי העסק עם ההוצאות הגבוהות ביותר"
+        delay={350}
+      >
+        <TopMerchants merchants={topMerchants} />
+      </ChartCard>
 
       {/* Transaction Table */}
       <TransactionTable
