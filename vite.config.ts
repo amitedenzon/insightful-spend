@@ -9,8 +9,16 @@ export default defineConfig(({ mode }) => ({
     host: "0.0.0.0",
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:3001'
-    }
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        // Scrape runs Puppeteer for ~60-90s per provider. Default proxy timeout
+        // (~30s) cuts the connection mid-scrape and surfaces as a cryptic
+        // "string did not match the expected pattern" fetch error in Safari.
+        timeout: 600_000,
+        proxyTimeout: 600_000,
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

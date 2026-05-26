@@ -26,6 +26,11 @@ dist-ssr
 csv
 
 server/data/*.csv
+server/data/scraped/
+server/data/.puppeteer-isracard/
+.env
+.env.*
+!.env.example
 GEMINI_API_KEY.txt
 /GEMINI_API_KEY.txt
 ./GEMINI_API_KEY.txt
