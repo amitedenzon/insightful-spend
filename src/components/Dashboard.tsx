@@ -20,6 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { CATEGORIES } from '@/utils/categories';
 import { Filter } from 'lucide-react';
 import {
@@ -62,6 +69,7 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [pieMode, setPieMode] = useState<'time' | 'category'>('time');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   // Filtered transactions based on view mode and category
   const filteredTransactions = useMemo(() => {
@@ -258,7 +266,7 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
               delay={300}
               className="lg:col-span-6"
             >
-              <DailyBarChart data={dailyData} />
+              <DailyBarChart data={dailyData} onDayClick={setSelectedDay} />
             </ChartCard>
           </>
         ) : (
@@ -311,11 +319,92 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
       </div>
 
       {/* Transaction Table */}
-      <TransactionTable 
-        transactions={filteredTransactions} 
-        onCategoryChange={onCategoryChange} 
+      <TransactionTable
+        transactions={filteredTransactions}
+        onCategoryChange={onCategoryChange}
         onBatchCategoryChange={onBatchCategoryChange}
       />
+
+      <DayDetailDialog
+        day={selectedDay}
+        month={selectedMonth}
+        year={selectedYear}
+        transactions={filteredTransactions}
+        onClose={() => setSelectedDay(null)}
+      />
     </div>
+  );
+}
+
+interface DayDetailDialogProps {
+  day: number | null;
+  month: number;
+  year: number;
+  transactions: Transaction[];
+  onClose: () => void;
+}
+
+function DayDetailDialog({ day, month, year, transactions, onClose }: DayDetailDialogProps) {
+  const dayTransactions = useMemo(() => {
+    if (day == null) return [];
+    return transactions
+      .filter(t =>
+        t.purchaseDate.getDate() === day &&
+        t.purchaseDate.getMonth() === month &&
+        t.purchaseDate.getFullYear() === year
+      )
+      .sort((a, b) => b.chargeAmount - a.chargeAmount);
+  }, [day, month, year, transactions]);
+
+  const total = useMemo(
+    () => dayTransactions.reduce((sum, t) => sum + t.chargeAmount, 0),
+    [dayTransactions]
+  );
+
+  const formatCurrency = (n: number) =>
+    n.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' });
+
+  return (
+    <Dialog open={day != null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-lg" dir="rtl">
+        <DialogHeader>
+          <DialogTitle>
+            {day != null && `${day} ${HEBREW_MONTHS[month]} ${year}`}
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            {dayTransactions.length === 0
+              ? 'אין עסקאות ביום זה'
+              : `${dayTransactions.length} עסקאות · סה״כ ${formatCurrency(total)}`}
+          </p>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto -mx-6 px-6">
+          {dayTransactions.length > 0 && (
+            <ul className="divide-y divide-border">
+              {dayTransactions.map(t => (
+                <li key={t.id} className="py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-foreground truncate">{t.merchantName}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="secondary" className="text-xs">{t.category}</Badge>
+                      {t.isStandingOrder && (
+                        <Badge variant="outline" className="text-xs">הוראת קבע</Badge>
+                      )}
+                      {t.installments && (
+                        <Badge variant="outline" className="text-xs">
+                          תשלום {t.installments.current}/{t.installments.total}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold whitespace-nowrap">
+                    {formatCurrency(t.chargeAmount)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

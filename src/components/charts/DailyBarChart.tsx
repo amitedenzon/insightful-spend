@@ -3,9 +3,10 @@ import { DailyData } from '@/types/transaction';
 
 interface DailyBarChartProps {
   data: DailyData[];
+  onDayClick?: (day: number) => void;
 }
 
-export function DailyBarChart({ data }: DailyBarChartProps) {
+export function DailyBarChart({ data, onDayClick }: DailyBarChartProps) {
   // Net-negative days (refund-heavy) are clamped to 0 so the axis baseline
   // stays at 0 and the visual stays a "daily spend" chart, not a net-flow chart.
   const sanitized = data.map(d => ({ ...d, amount: Math.max(0, d.amount) }));
@@ -30,7 +31,14 @@ export function DailyBarChart({ data }: DailyBarChartProps) {
   return (
     <div className="h-[300px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={sanitized} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+        <BarChart
+          data={sanitized}
+          margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
+          onClick={(e) => {
+            const day = (e?.activePayload?.[0]?.payload as DailyData | undefined)?.day;
+            if (typeof day === 'number') onDayClick?.(day);
+          }}
+        >
           <CartesianGrid
             strokeDasharray="3 3"
             stroke="hsl(var(--border))"
@@ -72,6 +80,7 @@ export function DailyBarChart({ data }: DailyBarChartProps) {
             fill="hsl(var(--primary))"
             radius={[4, 4, 0, 0]}
             maxBarSize={30}
+            cursor={onDayClick ? 'pointer' : undefined}
           />
         </BarChart>
       </ResponsiveContainer>
