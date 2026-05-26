@@ -98,8 +98,12 @@ export function DailyBarChart({ data, onDayClick }: DailyBarChartProps) {
               ifOverflow="extendDomain"
             >
               <Label
-                value={`ממוצע יומי ${formatTick(dailyAverage)}`}
-                position="insideTopRight"
+                value={`ממוצע יומי ${Math.round(dailyAverage).toLocaleString('he-IL', {
+                  style: 'currency',
+                  currency: 'ILS',
+                  maximumFractionDigits: 0,
+                })}`}
+                position="insideTopLeft"
                 fill="hsl(var(--muted-foreground))"
                 fontSize={10}
               />

@@ -81,8 +81,12 @@ export function TrendLineChart({ data }: TrendLineChartProps) {
               ifOverflow="extendDomain"
             >
               <Label
-                value={`ממוצע חודשי ₪${(monthlyAverage / 1000).toFixed(1)}K`}
-                position="insideTopRight"
+                value={`ממוצע חודשי ${Math.round(monthlyAverage).toLocaleString('he-IL', {
+                  style: 'currency',
+                  currency: 'ILS',
+                  maximumFractionDigits: 0,
+                })}`}
+                position="insideTopLeft"
                 fill="hsl(var(--muted-foreground))"
                 fontSize={10}
               />
