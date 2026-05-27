@@ -1,73 +1,44 @@
-# Welcome to your Lovable project
+# spender
 
-## Project info
+A Hebrew/RTL personal-spending dashboard ("בזבזני") that ingests Israeli credit-card statement CSVs and produces totals, category breakdowns, standing orders, installments, recurring payments, and monthly AI insights.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+![Spender dashboard, July 2025](docs/preview.png)
 
-## How can I edit this code?
+## Stack
 
-There are several ways of editing your application.
+- **Client** — Vite + React 18 + TypeScript + shadcn/ui + Tailwind + Recharts
+- **Server** — Express 5 + multer (uploaded CSVs persist under `server/data/`)
+- **AI (optional)** — Google Gemini for category labeling and streaming monthly insights
 
-**Use Lovable**
+## Run locally
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Requires Node.js (use [nvm](https://github.com/nvm-sh/nvm#installing-and-updating) if you need to install it).
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
+git clone https://github.com/amitedenzon/spender.git
+cd spender
 npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app is at http://localhost:5173. Vite proxies `/api/*` to the Express server on port 3001, so always go through 5173.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+To enable Gemini-backed features (AI categorization + monthly insights), drop your key into `GEMINI_API_KEY.txt` at the repo root — it is read server-side and never shipped to the client.
 
-**Use GitHub Codespaces**
+## Commands
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- `npm run dev` — Express API + Vite client, concurrently
+- `npm run server` — API only
+- `npm run build` / `npm run build:dev` — production / dev-mode Vite build into `dist/`
+- `npm run lint` — ESLint (flat config)
+- `./launch_app.sh` — build & run the Dockerfile with live-reload mounts on ports 3001 and 5173
 
-## What technologies are used for this project?
+## What it does
 
-This project is built with:
+- **Upload** — drop one or more Hebrew Isracard-style CSVs; re-uploading overwrites by filename.
+- **Dashboard** — monthly/yearly totals, category pies, top merchants, weekly patterns, income vs. spending.
+- **Insights** — streamed Gemini cards (headline + 4–6 short Hebrew takes) for the latest statement period.
+- **Recurring payments** — surfaces standing orders, installments, and merchants that bill in ≥3 months with stable amounts.
+- **Data management** — list/download/delete uploaded CSVs.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Category overrides are stored in `localStorage` under `category_overrides` and reapplied on every load.
