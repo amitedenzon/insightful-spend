@@ -40,16 +40,16 @@ export function MonthlyPieChart({ data, onMonthClick }: MonthlyPieChartProps) {
   }
 
   return (
-    <div className="flex items-center gap-4 min-h-[260px]">
-      <div className="relative w-[160px] h-[160px] shrink-0">
+    <div className="flex items-center gap-5 min-h-[280px]">
+      <div className="relative w-[200px] h-[200px] shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={filteredData}
               cx="50%"
               cy="50%"
-              innerRadius={55}
-              outerRadius={78}
+              innerRadius={70}
+              outerRadius={98}
               dataKey="amount"
               nameKey="month"
               stroke="hsl(var(--card))"

@@ -39,17 +39,17 @@ export function CategoryPieChart({ data, onCategoryClick }: CategoryPieChartProp
   }
 
   return (
-    <div className="flex items-center gap-4 min-h-[260px]">
+    <div className="flex items-center gap-5 min-h-[280px]">
       {/* Donut with the total stamped in the middle. Thin, no padding angle. */}
-      <div className="relative w-[160px] h-[160px] shrink-0">
+      <div className="relative w-[200px] h-[200px] shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={data}
               cx="50%"
               cy="50%"
-              innerRadius={55}
-              outerRadius={78}
+              innerRadius={70}
+              outerRadius={98}
               dataKey="value"
               nameKey="name"
               stroke="hsl(var(--card))"

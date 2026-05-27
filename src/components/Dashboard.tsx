@@ -229,7 +229,7 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
               title="הוצאות יומיות"
               subtitle="פעילות יומית לאורך החודש"
               delay={250}
-              className="lg:col-span-8"
+              className="lg:col-span-6"
             >
               <DailyBarChart data={dailyData} onDayClick={setSelectedDay} />
             </ChartCard>
@@ -238,7 +238,7 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
               title={pieMode === 'time' ? 'התפלגות שבועית' : 'התפלגות לפי קטגוריה'}
               subtitle={pieMode === 'time' ? 'הוצאות לפי שבוע בחודש' : 'הוצאות לפי סוג'}
               delay={300}
-              className="lg:col-span-4"
+              className="lg:col-span-6"
               action={
                 <Tabs value={pieMode} onValueChange={(v) => setPieMode(v as 'time' | 'category')} className="w-[100px]">
                   <TabsList className="grid w-full grid-cols-2 h-8">
@@ -264,7 +264,7 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
               title="מגמת הוצאות"
               subtitle="התפתחות ההוצאות לאורך השנה"
               delay={250}
-              className="lg:col-span-8"
+              className="lg:col-span-6"
             >
               <TrendLineChart data={trendData} />
             </ChartCard>
@@ -273,7 +273,7 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
               title={pieMode === 'time' ? 'התפלגות חודשית' : 'התפלגות לפי קטגוריה'}
               subtitle={pieMode === 'time' ? 'הוצאות לפי חודש (לחץ למעבר)' : 'הוצאות לפי סוג'}
               delay={300}
-              className="lg:col-span-4"
+              className="lg:col-span-6"
               action={
                 <Tabs value={pieMode} onValueChange={(v) => setPieMode(v as 'time' | 'category')} className="w-[100px]">
                   <TabsList className="grid w-full grid-cols-2 h-8">

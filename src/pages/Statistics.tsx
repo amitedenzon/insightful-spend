@@ -17,12 +17,12 @@ import {
   FileQuestion,
   ArrowUpRight,
   ArrowDownRight,
-  Activity,
   Crown,
   UserPlus,
   UserMinus,
   Loader2,
   RefreshCw,
+  Activity,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,7 +33,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { Transaction } from '@/types/transaction';
 import {
@@ -49,11 +48,6 @@ interface StatisticsProps {
   transactions: Transaction[];
 }
 
-const HEBREW_MONTHS = [
-  'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
-  'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר',
-];
-
 const formatILS = (n: number) =>
   n.toLocaleString('he-IL', {
     style: 'currency',
@@ -67,6 +61,10 @@ const formatPct = (n: number, withSign = false) => {
   return `${sign}${v}%`;
 };
 
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 const Statistics = ({ transactions }: StatisticsProps) => {
   const navigate = useNavigate();
 
@@ -77,8 +75,6 @@ const Statistics = ({ transactions }: StatisticsProps) => {
   const latest = useMemo(() => getLatestStatementPeriod(transactions), [transactions]);
   const [selected, setSelected] = useState<Period | null>(latest);
 
-  // Re-anchor selection when data loads / latest period changes (e.g. new
-  // CSVs uploaded mid-session) — but only if the user hasn't picked something.
   useEffect(() => {
     if (!selected && latest) setSelected(latest);
   }, [latest, selected]);
@@ -88,8 +84,8 @@ const Statistics = ({ transactions }: StatisticsProps) => {
     [transactions, selected]
   );
 
-  // AI insights state — fetched on demand. Cached per period key in component
-  // memory; switching back to a previously-loaded period re-uses the result.
+  // AI insights cache keyed by period — switching back to a previously-loaded
+  // month re-uses the result instead of re-paying the API call.
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [headline, setHeadline] = useState<string>('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -138,7 +134,6 @@ const Statistics = ({ transactions }: StatisticsProps) => {
     const key = `${selected.year}-${selected.month}`;
     cacheRef.current.delete(key);
     lastFetchedKey.current = null;
-    // Trigger the effect: bump a state to force re-run.
     setSelected({ ...selected });
   };
 
@@ -166,8 +161,8 @@ const Statistics = ({ transactions }: StatisticsProps) => {
   }
 
   return (
-    <div className="space-y-6">
-      <Header
+    <div className="space-y-4">
+      <PageHeader
         availableMonths={availableMonths}
         selected={selected}
         onChange={setSelected}
@@ -175,68 +170,34 @@ const Statistics = ({ transactions }: StatisticsProps) => {
         aiLoading={aiLoading}
       />
 
-      {headline && !aiLoading && (
-        <HeadlineBanner headline={headline} />
-      )}
-
-      <HeroMetric summary={summary} />
-
-      <QuickStatsRow summary={summary} />
-
-      <AISection
-        insights={insights}
-        loading={aiLoading}
-        error={aiError}
-        onRetry={refreshAI}
-      />
-
-      {summary.categoryMovers.length > 0 && (
-        <Section title="התנועות הגדולות בקטגוריות" subtitle="הקטגוריות שגדלו וקטנו מול 3 החודשים האחרונים">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {summary.categoryMovers.map(m => (
-              <CategoryMoverCard key={m.category} mover={m} />
-            ))}
-          </div>
-        </Section>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {summary.newMerchants.length > 0 && (
-          <Section
-            title="בתי עסק חדשים"
-            subtitle="לקוחות בפעם הראשונה בחודש הזה"
-            compact
-          >
-            <MerchantList
-              items={summary.newMerchants}
-              icon={<UserPlus className="w-4 h-4" />}
-              tone="primary"
-            />
-          </Section>
-        )}
-        {summary.lapsedMerchants.length > 0 && (
-          <Section
-            title="קבועים שנעלמו"
-            subtitle="מקומות שביקרת בהם קבוע ולא חזרו החודש"
-            compact
-          >
-            <MerchantList
-              items={summary.lapsedMerchants}
-              icon={<UserMinus className="w-4 h-4" />}
-              tone="neutral"
-              showLabel="חיוב ממוצע"
-            />
-          </Section>
-        )}
+      {/* Top row — change-vs-baseline on the left, AI narrative on the right.
+          Both deliberately avoid restating numbers already on the Dashboard
+          (total, top merchants, daily breakdown). */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+        <DeltaCard summary={summary} className="lg:col-span-2" />
+        <AINarrativeCard
+          headline={headline}
+          insights={insights}
+          loading={aiLoading}
+          error={aiError}
+          onRetry={refreshAI}
+          className="lg:col-span-3"
+        />
       </div>
 
-      <SubscriptionsSection summary={summary} />
+      {/* Categories that moved vs the trailing 3-month average. The Dashboard
+          shows current-period shares — this section shows *change*. */}
+      <CategoryMoversCard summary={summary} />
 
-      <LifestyleSection summary={summary} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <LifestyleCard summary={summary} />
+        <AnomaliesCard summary={summary} />
+      </div>
 
-      <BehaviorSection summary={summary} />
-
-      <AnomaliesSection summary={summary} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <SubscriptionsCard summary={summary} />
+        <MerchantChurnCard summary={summary} />
+      </div>
     </div>
   );
 };
@@ -244,10 +205,10 @@ const Statistics = ({ transactions }: StatisticsProps) => {
 export default Statistics;
 
 // ---------------------------------------------------------------------------
-// Header + period selector
+// Header
 // ---------------------------------------------------------------------------
 
-function Header({
+function PageHeader({
   availableMonths,
   selected,
   onChange,
@@ -262,21 +223,23 @@ function Header({
 }) {
   const value = `${selected.year}-${selected.month}`;
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">תובנות וסטטיסטיקה</h1>
-        <p className="text-muted-foreground mt-1 text-sm">{selected.label}</p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">תובנות</h1>
+        <p className="text-muted-foreground text-sm">
+          מה השתנה ב{selected.label} מול החודשים שקדמו לו
+        </p>
       </div>
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={onRefreshAI}
           disabled={aiLoading}
-          className="gap-2"
+          className="gap-1.5 text-muted-foreground hover:text-foreground"
         >
           <RefreshCw className={cn('h-3.5 w-3.5', aiLoading && 'animate-spin')} />
-          רענן תובנות
+          רענן
         </Button>
         <Select
           value={value}
@@ -286,7 +249,7 @@ function Header({
             if (found) onChange(found);
           }}
         >
-          <SelectTrigger className="w-[200px] bg-background">
+          <SelectTrigger className="w-[180px] bg-background">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -303,219 +266,163 @@ function Header({
 }
 
 // ---------------------------------------------------------------------------
-// AI headline banner
+// Section shell (tight, borderless)
 // ---------------------------------------------------------------------------
 
-function HeadlineBanner({ headline }: { headline: string }) {
+function Card({
+  title,
+  subtitle,
+  icon,
+  children,
+  className,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <div className="rounded-lg p-4 bg-gradient-to-l from-primary/[0.07] to-primary/[0.02] border border-primary/15 flex items-start gap-3 animate-slide-up">
-      <div className="w-9 h-9 rounded-md bg-primary/15 text-primary flex items-center justify-center shrink-0">
-        <Sparkles className="h-4 w-4" />
+    <div className={cn('bg-card rounded-lg p-4 animate-slide-up', className)}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          {icon}
+          <div>
+            <h3 className="text-sm font-semibold text-foreground tracking-tight">{title}</h3>
+            {subtitle && (
+              <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+            )}
+          </div>
+        </div>
+        {action}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-muted-foreground mb-1">תובנת AI</p>
-        <p className="text-base font-semibold text-foreground leading-snug">{headline}</p>
-      </div>
+      {children}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Hero metric: this month vs last, with end-of-month projection
+// Delta card — change vs previous month + end-of-month projection
 // ---------------------------------------------------------------------------
 
-function HeroMetric({ summary }: { summary: StatisticsSummary }) {
-  const { currentTotals, totalDelta, totalPctChange, hasPrevious, burnRate } = summary;
-  const positive = totalDelta <= 0; // less spend = good
-  const arrow = totalDelta >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />;
+function DeltaCard({
+  summary,
+  className,
+}: {
+  summary: StatisticsSummary;
+  className?: string;
+}) {
+  const { totalDelta, totalPctChange, hasPrevious, burnRate, previous, previousTotals } = summary;
+  const positive = totalDelta <= 0;
+  const arrow = totalDelta >= 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />;
   const isCurrentMonth = burnRate.daysElapsed < burnRate.daysInMonth;
-  const projectionDelta = burnRate.projectedTotal - summary.previousTotals.total;
+  const projectionDelta = burnRate.projectedTotal - previousTotals.total;
 
   return (
-    <div className="rounded-lg bg-card p-6 animate-slide-up grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div>
-        <p className="text-sm text-muted-foreground mb-2">סה״כ הוצאות החודש</p>
-        <p className="text-4xl font-semibold tracking-tight tabular-nums text-foreground">
-          {formatILS(currentTotals.total)}
-        </p>
-        {hasPrevious && (
-          <div
-            className={cn(
-              'mt-2 inline-flex items-center gap-1 text-sm font-medium',
-              positive ? 'text-emerald-600' : 'text-destructive'
-            )}
-          >
-            {arrow}
-            <span>
-              {formatILS(Math.abs(totalDelta))} ({formatPct(totalPctChange, true)}) מול{' '}
-              {summary.previous.label}
+    <Card
+      title="שינוי מול החודש הקודם"
+      subtitle={hasPrevious ? `${previous.label}` : 'אין מספיק היסטוריה להשוואה'}
+      className={className}
+      icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
+    >
+      <div className="space-y-3">
+        {hasPrevious ? (
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <div
+              className={cn(
+                'inline-flex items-center gap-1 text-2xl font-semibold tracking-tight tabular-nums',
+                positive ? 'text-savings' : 'text-spending'
+              )}
+            >
+              {arrow}
+              {formatILS(Math.abs(totalDelta))}
+            </div>
+            <span className="text-sm text-muted-foreground">
+              ({formatPct(totalPctChange, true)})
             </span>
+          </div>
+        ) : (
+          <p className="text-2xl font-semibold tabular-nums text-foreground">
+            {formatILS(summary.currentTotals.total)}
+          </p>
+        )}
+
+        {isCurrentMonth && (
+          <div className="pt-3 border-t border-border">
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">צפי לסוף החודש</p>
+                <p className="text-lg font-semibold tabular-nums">
+                  {formatILS(burnRate.projectedTotal)}
+                </p>
+              </div>
+              <div className="text-left">
+                <p className="text-xs text-muted-foreground">
+                  {burnRate.daysElapsed}/{burnRate.daysInMonth} ימים
+                </p>
+                {hasPrevious && (
+                  <p
+                    className={cn(
+                      'text-xs font-medium tabular-nums',
+                      projectionDelta > 0 ? 'text-spending' : 'text-savings'
+                    )}
+                  >
+                    {projectionDelta > 0 ? '+' : ''}
+                    {formatILS(Math.abs(projectionDelta))} מול הקודם
+                  </p>
+                )}
+              </div>
+            </div>
+            {burnRate.typicalDailyAverage > 0 && (
+              <BurnRateBar
+                current={burnRate.dailyAverageThisMonth}
+                baseline={burnRate.typicalDailyAverage}
+              />
+            )}
           </div>
         )}
       </div>
-
-      <div>
-        <p className="text-sm text-muted-foreground mb-2">קצב יומי</p>
-        <p className="text-2xl font-semibold tracking-tight tabular-nums text-foreground">
-          {formatILS(burnRate.dailyAverageThisMonth)}
-        </p>
-        {burnRate.typicalDailyAverage > 0 && (
-          <p className="text-xs text-muted-foreground mt-1">
-            ממוצע 3 החודשים האחרונים: {formatILS(burnRate.typicalDailyAverage)}
-          </p>
-        )}
-        {burnRate.typicalDailyAverage > 0 && (
-          <BurnRateBar
-            current={burnRate.dailyAverageThisMonth}
-            baseline={burnRate.typicalDailyAverage}
-          />
-        )}
-      </div>
-
-      <div>
-        <p className="text-sm text-muted-foreground mb-2">
-          {isCurrentMonth ? 'צפי לסוף החודש' : 'סיכום חודשי'}
-        </p>
-        <p className="text-2xl font-semibold tracking-tight tabular-nums text-foreground">
-          {formatILS(burnRate.projectedTotal)}
-        </p>
-        {hasPrevious && isCurrentMonth && (
-          <p
-            className={cn(
-              'text-xs mt-1',
-              projectionDelta > 0 ? 'text-destructive' : 'text-emerald-600'
-            )}
-          >
-            {projectionDelta > 0 ? '+' : ''}
-            {formatILS(Math.abs(projectionDelta))} מול {summary.previous.label}
-          </p>
-        )}
-        <p className="text-xs text-muted-foreground mt-1">
-          {burnRate.daysElapsed} מתוך {burnRate.daysInMonth} ימים
-        </p>
-      </div>
-    </div>
+    </Card>
   );
 }
 
 function BurnRateBar({ current, baseline }: { current: number; baseline: number }) {
-  // Visualize current vs baseline. Cap at 200% so a runaway month still shows
-  // *something* meaningful instead of a tiny baseline marker.
   const ratio = baseline > 0 ? current / baseline : 1;
   const widthPct = Math.min(200, ratio * 100);
   const over = ratio > 1;
+  const diffPct = Math.round((ratio - 1) * 100);
   return (
-    <div className="mt-2 relative h-1.5 rounded-full bg-muted overflow-hidden">
-      <div
-        className={cn(
-          'h-full rounded-full',
-          over ? 'bg-destructive/70' : 'bg-emerald-500/70'
-        )}
-        style={{ width: `${widthPct / 2}%` }}
-      />
-      {/* baseline marker at 50% of the bar (which is 100% of baseline). */}
-      <div className="absolute top-0 bottom-0 left-1/2 w-px bg-foreground/40" />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Quick stat badges row
-// ---------------------------------------------------------------------------
-
-function QuickStatsRow({ summary }: { summary: StatisticsSummary }) {
-  const txDelta = summary.currentTotals.transactionCount - summary.previousTotals.transactionCount;
-  const avgDelta = summary.currentTotals.avgTransaction - summary.previousTotals.avgTransaction;
-  const subRate =
-    summary.savingsRate != null ? formatPct(summary.savingsRate, true) : '—';
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <QuickStat
-        icon={<Activity className="h-4 w-4" />}
-        label="מספר עסקאות"
-        value={String(summary.currentTotals.transactionCount)}
-        sub={summary.hasPrevious ? `${txDelta >= 0 ? '+' : ''}${txDelta} מהחודש שעבר` : undefined}
-        tone={txDelta > 0 ? 'warning' : 'positive'}
-      />
-      <QuickStat
-        icon={<Wallet className="h-4 w-4" />}
-        label="ממוצע לעסקה"
-        value={formatILS(summary.currentTotals.avgTransaction)}
-        sub={
-          summary.hasPrevious
-            ? `${avgDelta >= 0 ? '+' : ''}${formatILS(Math.abs(avgDelta))}`
-            : undefined
-        }
-        tone={avgDelta > 0 ? 'warning' : 'positive'}
-      />
-      <QuickStat
-        icon={<Calendar className="h-4 w-4" />}
-        label="ימים עם הוצאה"
-        value={`${summary.behavior.daysWithSpend} / ${summary.behavior.daysElapsedInMonth}`}
-        sub={
-          summary.behavior.longestDryStreak > 1
-            ? `${summary.behavior.longestDryStreak} ימים יבשים ברצף`
-            : undefined
-        }
-      />
-      <QuickStat
-        icon={<PiggyBank className="h-4 w-4" />}
-        label={summary.savingsRate == null ? 'הכנסות' : 'שיעור חיסכון'}
-        value={
-          summary.savingsRate == null
-            ? formatILS(summary.currentTotals.income)
-            : subRate
-        }
-        sub={
-          summary.savingsRate != null
-            ? `${formatILS(summary.currentTotals.income - summary.currentTotals.total)} נותרו`
-            : undefined
-        }
-        tone={
-          summary.savingsRate != null && summary.savingsRate > 0
-            ? 'positive'
-            : summary.savingsRate != null
-              ? 'warning'
-              : 'neutral'
-        }
-      />
-    </div>
-  );
-}
-
-function QuickStat({
-  icon,
-  label,
-  value,
-  sub,
-  tone = 'neutral',
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: 'positive' | 'warning' | 'neutral';
-}) {
-  const toneCls = {
-    positive: 'text-emerald-600',
-    warning: 'text-destructive',
-    neutral: 'text-muted-foreground',
-  }[tone];
-  return (
-    <div className="rounded-lg bg-card p-3 animate-slide-up">
-      <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
-        {icon}
-        <span className="text-xs">{label}</span>
+    <div className="mt-3">
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1">
+        <span>קצב יומי {formatILS(current)}</span>
+        <span>ממוצע 3ח׳ {formatILS(baseline)}</span>
       </div>
-      <p className="text-lg font-semibold tabular-nums text-foreground">{value}</p>
-      {sub && <p className={cn('text-xs mt-0.5', toneCls)}>{sub}</p>}
+      <div className="relative h-1.5 rounded-full bg-muted overflow-hidden">
+        <div
+          className={cn(
+            'h-full rounded-full transition-all',
+            over ? 'bg-spending/70' : 'bg-savings/70'
+          )}
+          style={{ width: `${widthPct / 2}%` }}
+        />
+        <div className="absolute top-0 bottom-0 left-1/2 w-px bg-foreground/30" />
+      </div>
+      <p
+        className={cn(
+          'text-[11px] mt-1',
+          over ? 'text-spending' : 'text-savings'
+        )}
+      >
+        {over ? `מבזבז ${diffPct}% מעל הממוצע` : `חסכוני ב-${Math.abs(diffPct)}%`}
+      </p>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// AI insights section
+// AI narrative — single card with headline + bullet list (not 4 separate cards)
 // ---------------------------------------------------------------------------
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -534,561 +441,504 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   info: Info,
 };
 
-function severityStyles(s: InsightSeverity) {
+function severityIconClass(s: InsightSeverity) {
   return {
-    positive: {
-      wrap: 'bg-emerald-500/[0.07] border-emerald-500/20',
-      icon: 'bg-emerald-500/15 text-emerald-600',
-      badge: 'bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20',
-      badgeLabel: 'חיובי',
-    },
-    neutral: {
-      wrap: 'bg-card border-border',
-      icon: 'bg-muted text-muted-foreground',
-      badge: 'bg-muted text-muted-foreground',
-      badgeLabel: 'תצפית',
-    },
-    warning: {
-      wrap: 'bg-amber-500/[0.07] border-amber-500/20',
-      icon: 'bg-amber-500/15 text-amber-600',
-      badge: 'bg-amber-500/15 text-amber-700 hover:bg-amber-500/20',
-      badgeLabel: 'שימו לב',
-    },
-    alert: {
-      wrap: 'bg-destructive/[0.07] border-destructive/20',
-      icon: 'bg-destructive/15 text-destructive',
-      badge: 'bg-destructive/15 text-destructive hover:bg-destructive/20',
-      badgeLabel: 'חריגה',
-    },
+    positive: 'bg-savings/15 text-savings',
+    neutral: 'bg-muted text-muted-foreground',
+    warning: 'bg-warning/15 text-warning',
+    alert: 'bg-spending/15 text-spending',
   }[s];
 }
 
-function AISection({
+function AINarrativeCard({
+  headline,
   insights,
   loading,
   error,
   onRetry,
+  className,
 }: {
+  headline: string;
   insights: AIInsight[];
   loading: boolean;
   error: string | null;
   onRetry: () => void;
+  className?: string;
 }) {
   return (
-    <Section
-      title="תובנות AI"
-      subtitle="ניתוח חכם של ההוצאות שלך החודש"
+    <Card
+      title="תובנת AI"
+      subtitle="ניתוח חכם של החודש"
       icon={<Sparkles className="h-4 w-4 text-primary" />}
+      className={className}
     >
-      {loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {[0, 1, 2, 3].map(i => (
-            <div
-              key={i}
-              className="rounded-lg bg-muted/40 h-24 animate-pulse"
-            />
-          ))}
-        </div>
-      )}
-      {error && !loading && (
-        <div className="rounded-lg border border-destructive/20 bg-destructive/[0.07] p-4 flex items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-            <div>
-              <p className="font-medium text-foreground text-sm">תובנות AI לא זמינות</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{error}</p>
-            </div>
+      {loading ? (
+        <div className="space-y-2">
+          <div className="h-5 w-3/4 rounded bg-muted/60 animate-pulse" />
+          <div className="space-y-1.5 pt-2">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="h-3 rounded bg-muted/40 animate-pulse" />
+            ))}
           </div>
-          <Button size="sm" variant="outline" onClick={onRetry}>
+        </div>
+      ) : error ? (
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="h-4 w-4 text-spending shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-foreground">תובנות AI לא זמינות</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{error}</p>
+          </div>
+          <Button size="sm" variant="ghost" onClick={onRetry}>
             נסה שוב
           </Button>
         </div>
-      )}
-      {!loading && !error && insights.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {insights.map((ins, i) => (
-            <InsightCard key={i} insight={ins} delay={i * 50} />
-          ))}
+      ) : insights.length === 0 ? (
+        <p className="text-sm text-muted-foreground">אין תובנות זמינות לחודש זה</p>
+      ) : (
+        <div className="space-y-3">
+          {headline && (
+            <p className="text-base font-semibold text-foreground leading-snug">
+              {headline}
+            </p>
+          )}
+          <ul className="space-y-2">
+            {insights.slice(0, 5).map((ins, i) => {
+              const IconComp = ICON_MAP[ins.iconHint] || Info;
+              return (
+                <li key={i} className="flex items-start gap-2.5">
+                  <span
+                    className={cn(
+                      'w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-0.5',
+                      severityIconClass(ins.severity)
+                    )}
+                  >
+                    <IconComp className="h-3.5 w-3.5" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground leading-snug">
+                      <span className="font-medium">{ins.title}.</span>{' '}
+                      <span className="text-foreground/80">{ins.body}</span>
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
-      {!loading && !error && insights.length === 0 && (
-        <div className="text-sm text-muted-foreground py-6 text-center">
-          אין תובנות זמינות לחודש זה
-        </div>
-      )}
-    </Section>
+    </Card>
   );
 }
 
-function InsightCard({ insight, delay = 0 }: { insight: AIInsight; delay?: number }) {
-  const styles = severityStyles(insight.severity);
-  const IconComp = ICON_MAP[insight.iconHint] || Info;
+// ---------------------------------------------------------------------------
+// Category movers — the "what changed" section
+// ---------------------------------------------------------------------------
+
+function CategoryMoversCard({ summary }: { summary: StatisticsSummary }) {
+  if (summary.categoryMovers.length === 0) {
+    return null;
+  }
   return (
-    <div
-      className={cn(
-        'rounded-lg border p-4 animate-slide-up',
-        styles.wrap
-      )}
-      style={{ animationDelay: `${delay}ms` }}
+    <Card
+      title="קטגוריות שזזו"
+      subtitle="שינוי בהוצאה לעומת ממוצע 3 החודשים האחרונים"
+      icon={<Activity className="h-4 w-4 text-muted-foreground" />}
     >
-      <div className="flex items-start gap-3">
-        <div className={cn('w-9 h-9 rounded-md flex items-center justify-center shrink-0', styles.icon)}>
-          <IconComp className="h-4 w-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <h4 className="font-semibold text-foreground text-sm">{insight.title}</h4>
-            <Badge variant="secondary" className={cn('text-[10px] px-1.5 py-0', styles.badge)}>
-              {styles.badgeLabel}
-            </Badge>
-          </div>
-          <p className="text-sm text-foreground/85 leading-snug">{insight.body}</p>
-          {insight.suggestion && (
-            <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/50">
-              <span className="font-medium">המלצה: </span>
-              {insight.suggestion}
-            </p>
-          )}
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        {summary.categoryMovers.map(m => {
+          const up = m.delta > 0;
+          return (
+            <div
+              key={m.category}
+              className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-muted/40 transition-colors"
+            >
+              <div
+                className={cn(
+                  'w-7 h-7 rounded-md flex items-center justify-center shrink-0',
+                  up ? 'bg-spending/10 text-spending' : 'bg-savings/10 text-savings'
+                )}
+              >
+                {up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-medium text-foreground break-words leading-tight">
+                    {m.category}
+                  </p>
+                  {m.isHighestEver && (
+                    <Badge variant="outline" className="text-[10px] gap-0.5 px-1 py-0 border-warning/40 text-warning leading-none h-4">
+                      <Crown className="h-2.5 w-2.5" />
+                      שיא
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground tabular-nums">
+                  {formatILS(m.current)} · ממוצע {formatILS(m.baseline)}
+                </p>
+              </div>
+              <div className="text-left shrink-0">
+                <p
+                  className={cn(
+                    'text-sm font-semibold tabular-nums',
+                    up ? 'text-spending' : 'text-savings'
+                  )}
+                >
+                  {up ? '+' : ''}
+                  {formatILS(Math.abs(m.delta))}
+                </p>
+                {Number.isFinite(m.pctChange) && m.baseline > 0 && (
+                  <p className="text-[10px] text-muted-foreground tabular-nums">
+                    {formatPct(m.pctChange, true)}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
+    </Card>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Section wrapper
+// Lifestyle — behavioural rollups (restaurants, coffee, deliveries)
 // ---------------------------------------------------------------------------
 
-function Section({
-  title,
-  subtitle,
-  icon,
-  children,
-  compact = false,
-}: {
-  title: string;
-  subtitle?: string;
-  icon?: React.ReactNode;
-  children: React.ReactNode;
-  compact?: boolean;
-}) {
+function LifestyleCard({ summary }: { summary: StatisticsSummary }) {
+  const { lifestyle } = summary;
+  const restaurantDelta = lifestyle.restaurantCount - lifestyle.restaurantCountPrev;
+  const homeRatio = Math.round(lifestyle.groceryVsRestaurant * 100);
+
+  const rows: {
+    icon: React.ReactNode;
+    label: string;
+    primary: string;
+    secondary?: string;
+    delta?: { text: string; tone: 'positive' | 'warning' };
+  }[] = [
+    {
+      icon: <Utensils className="h-3.5 w-3.5" />,
+      label: 'יציאות לאוכל',
+      primary: `${lifestyle.restaurantCount} פעמים`,
+      secondary: formatILS(lifestyle.restaurantTotal),
+      delta: summary.hasPrevious
+        ? {
+            text: `${restaurantDelta >= 0 ? '+' : ''}${restaurantDelta} מהחודש שעבר`,
+            tone: restaurantDelta > 0 ? 'warning' : 'positive',
+          }
+        : undefined,
+    },
+    {
+      icon: <Coffee className="h-3.5 w-3.5" />,
+      label: 'קפה ומאפים',
+      primary: `${lifestyle.coffeeCount} ביקורים`,
+      secondary: formatILS(lifestyle.coffeeTotal),
+    },
+    {
+      icon: <ShoppingBag className="h-3.5 w-3.5" />,
+      label: 'משלוחים',
+      primary: `${lifestyle.deliveryCount} הזמנות`,
+      secondary: formatILS(lifestyle.deliveryTotal),
+    },
+    {
+      icon: <PiggyBank className="h-3.5 w-3.5" />,
+      label: 'בישול מול אוכל בחוץ',
+      primary: `${homeRatio}% בבית`,
+      secondary: `${formatILS(lifestyle.groceryTotal)} סופר · ${formatILS(lifestyle.restaurantTotal)} מסעדות`,
+    },
+  ];
+
   return (
-    <div className={cn('bg-card rounded-lg p-4 animate-slide-up', compact && 'p-4')}>
-      <div className="mb-3 flex items-center gap-2">
-        {icon}
-        <div>
-          <h3 className="text-sm font-semibold text-foreground tracking-tight">{title}</h3>
-          {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
-        </div>
-      </div>
-      {children}
-    </div>
+    <Card
+      title="הרגלים"
+      subtitle="ספירות שלא מופיעות בטאב ההוצאות"
+      icon={<Utensils className="h-4 w-4 text-muted-foreground" />}
+    >
+      <ul className="space-y-1">
+        {rows.map((r) => (
+          <li key={r.label} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/40 transition-colors">
+            <span className="w-7 h-7 rounded-md flex items-center justify-center bg-muted text-muted-foreground shrink-0">
+              {r.icon}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">{r.label}</p>
+              <p className="text-sm font-medium text-foreground">{r.primary}</p>
+              {r.secondary && (
+                <p className="text-[11px] text-muted-foreground tabular-nums">{r.secondary}</p>
+              )}
+            </div>
+            {r.delta && (
+              <p
+                className={cn(
+                  'text-[11px] font-medium tabular-nums shrink-0',
+                  r.delta.tone === 'positive' ? 'text-savings' : 'text-spending'
+                )}
+              >
+                {r.delta.text}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Category mover card
+// Anomalies — outlier transaction + spiked categories
 // ---------------------------------------------------------------------------
 
-function CategoryMoverCard({
-  mover,
-}: {
-  mover: StatisticsSummary['categoryMovers'][number];
-}) {
-  const up = mover.delta > 0;
-  const Icon = up ? TrendingUp : TrendingDown;
-  const tone = up ? 'destructive' : 'emerald';
-  const toneCls = up
-    ? 'bg-destructive/10 text-destructive'
-    : 'bg-emerald-500/10 text-emerald-600';
-  const sign = up ? '+' : '';
+function AnomaliesCard({ summary }: { summary: StatisticsSummary }) {
+  const { anomalies } = summary;
+  const big = anomalies.largestTransaction;
+  const hasSpike = anomalies.spikedCategories.length > 0;
+  const hasBigOutlier = big && anomalies.largestZScore > 2;
+
   return (
-    <div className="rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors p-3 flex items-start gap-3">
-      <div className={cn('w-9 h-9 rounded-md flex items-center justify-center shrink-0', toneCls)}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <p className="font-medium text-foreground text-sm break-words">{mover.category}</p>
-          {mover.isHighestEver && (
-            <Badge variant="outline" className="text-[10px] gap-1 px-1.5 py-0 border-amber-500/40 text-amber-600">
-              <Crown className="h-2.5 w-2.5" />
-              שיא
-            </Badge>
+    <Card
+      title="חריגות"
+      subtitle="עסקאות וקטגוריות יוצאות דופן ביחס להיסטוריה"
+      icon={<AlertTriangle className="h-4 w-4 text-muted-foreground" />}
+    >
+      {!hasSpike && !big ? (
+        <p className="text-sm text-muted-foreground py-2">לא נמצאו חריגות מהותיות החודש</p>
+      ) : (
+        <div className="space-y-3">
+          {big && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">העסקה הגדולה החודש</p>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <p className="text-xl font-semibold tabular-nums text-foreground">
+                  {formatILS(big.chargeAmount)}
+                </p>
+                {hasBigOutlier && (
+                  <Badge className="text-[10px] px-1.5 py-0 h-5 bg-warning/15 text-warning hover:bg-warning/20 gap-1">
+                    <Flame className="h-2.5 w-2.5" />
+                    {anomalies.largestZScore.toFixed(1)}σ מעל הממוצע
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-foreground mt-1 break-words">{big.merchantName}</p>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 mt-1">
+                {big.category}
+              </Badge>
+            </div>
+          )}
+
+          {hasSpike && (
+            <div className={cn(big && 'pt-3 border-t border-border')}>
+              <p className="text-xs text-muted-foreground mb-2">קטגוריות שזינקו</p>
+              <ul className="space-y-1.5">
+                {anomalies.spikedCategories.map(c => (
+                  <li key={c.category} className="flex items-start gap-2">
+                    <Flame className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="text-sm font-medium text-foreground break-words">{c.category}</p>
+                        <p className="text-xs text-warning tabular-nums shrink-0">
+                          {c.z.toFixed(1)}σ
+                        </p>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground tabular-nums">
+                        החודש {formatILS(c.current)} · ממוצע {formatILS(c.mean)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {formatILS(mover.current)} · ממוצע 3ח׳: {formatILS(mover.baseline)}
-        </p>
-        <p
-          className={cn(
-            'text-sm font-semibold tabular-nums mt-1',
-            up ? 'text-destructive' : 'text-emerald-600'
-          )}
-        >
-          {sign}{formatILS(Math.abs(mover.delta))}
-          {Number.isFinite(mover.pctChange) && mover.baseline > 0 && (
-            <span className="text-xs font-normal text-muted-foreground"> · {formatPct(mover.pctChange, true)}</span>
-          )}
-        </p>
-      </div>
-    </div>
+      )}
+    </Card>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Merchant list (new / lapsed)
+// Subscriptions — new + stopped (current set lives on the Recurring tab)
 // ---------------------------------------------------------------------------
 
-function MerchantList({
-  items,
-  icon,
-  tone = 'neutral',
-  showLabel,
-}: {
-  items: StatisticsSummary['newMerchants'];
-  icon: React.ReactNode;
-  tone?: 'primary' | 'neutral';
-  showLabel?: string;
-}) {
-  const wrapCls =
-    tone === 'primary'
-      ? 'bg-primary/10 text-primary'
-      : 'bg-muted text-muted-foreground';
-  return (
-    <ul className="space-y-1.5 max-h-[300px] overflow-auto -mx-1 px-1">
-      {items.map(m => (
-        <li
-          key={m.merchant}
-          className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors"
-        >
-          <div className={cn('w-7 h-7 rounded-md flex items-center justify-center shrink-0', wrapCls)}>
-            {icon}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{m.merchant}</p>
-            <p className="text-xs text-muted-foreground">
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">{m.category}</Badge>
-              {m.count > 1 ? ` · ${m.count} עסקאות` : ''}
-            </p>
-          </div>
-          <div className="text-left whitespace-nowrap">
-            <p className="text-sm font-semibold tabular-nums">{formatILS(m.amount)}</p>
-            {showLabel && <p className="text-[10px] text-muted-foreground">{showLabel}</p>}
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Subscriptions section
-// ---------------------------------------------------------------------------
-
-function SubscriptionsSection({ summary }: { summary: StatisticsSummary }) {
+function SubscriptionsCard({ summary }: { summary: StatisticsSummary }) {
   const { subscriptions } = summary;
   const baseShare = summary.currentTotals.total > 0
     ? subscriptions.monthlyBase / summary.currentTotals.total
     : 0;
+  const newOnes = subscriptions.newRecurring;
+  const stopped = subscriptions.stoppedRecurring;
 
   return (
-    <Section
-      title="מנויים ותשלומים קבועים"
-      subtitle="המעקב מאתר אוטומטית עסקים שחוזרים ב-3 מתוך 4 החודשים האחרונים"
+    <Card
+      title="מנויים שהשתנו"
+      subtitle="זוהו דרך 3 מתוך 4 החודשים האחרונים"
       icon={<Repeat className="h-4 w-4 text-muted-foreground" />}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="rounded-lg bg-muted/30 p-4">
-          <p className="text-xs text-muted-foreground">בסיס חודשי קבוע</p>
-          <p className="text-2xl font-semibold tabular-nums mt-1">{formatILS(subscriptions.monthlyBase)}</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {subscriptions.totalRecurringMerchants} עסקים · {formatPct(baseShare)} מההוצאות
+      action={
+        <div className="text-left">
+          <p className="text-[11px] text-muted-foreground">בסיס חודשי</p>
+          <p className="text-sm font-semibold tabular-nums">{formatILS(subscriptions.monthlyBase)}</p>
+          <p className="text-[10px] text-muted-foreground">
+            {formatPct(baseShare)} מההוצאות
           </p>
-          <Progress value={Math.min(100, baseShare * 100)} className="mt-2 h-1.5" />
         </div>
-
-        <div className="rounded-lg bg-muted/30 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <p className="text-xs font-medium text-foreground">חדשים</p>
-          </div>
-          {subscriptions.newRecurring.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-2">לא התחילו מנויים חדשים לאחרונה</p>
-          ) : (
-            <ul className="space-y-1.5">
-              {subscriptions.newRecurring.map(s => (
-                <li key={s.merchant} className="flex items-center justify-between gap-2 text-sm">
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground truncate">{s.merchant}</p>
-                    <p className="text-[10px] text-muted-foreground">החל ב{s.firstSeen}</p>
-                  </div>
-                  <p className="font-semibold tabular-nums shrink-0">{formatILS(s.amount)}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="rounded-lg bg-muted/30 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <UserMinus className="h-3.5 w-3.5 text-muted-foreground" />
-            <p className="text-xs font-medium text-foreground">הופסקו</p>
-          </div>
-          {subscriptions.stoppedRecurring.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-2">אין מנויים שהופסקו</p>
-          ) : (
-            <ul className="space-y-1.5">
-              {subscriptions.stoppedRecurring.map(s => (
-                <li key={s.merchant} className="flex items-center justify-between gap-2 text-sm">
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground truncate">{s.merchant}</p>
-                    <p className="text-[10px] text-muted-foreground">אחרון ב{s.lastSeen}</p>
-                  </div>
-                  <p className="font-semibold tabular-nums shrink-0">{formatILS(s.amount)}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </Section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Lifestyle section: eating-out, coffee, delivery
-// ---------------------------------------------------------------------------
-
-function LifestyleSection({ summary }: { summary: StatisticsSummary }) {
-  const { lifestyle } = summary;
-  const restaurantDelta = lifestyle.restaurantCount - lifestyle.restaurantCountPrev;
-  const avgRestaurant = lifestyle.restaurantCount > 0
-    ? lifestyle.restaurantTotal / lifestyle.restaurantCount
-    : 0;
-  const avgCoffee = lifestyle.coffeeCount > 0
-    ? lifestyle.coffeeTotal / lifestyle.coffeeCount
-    : 0;
-
-  return (
-    <Section
-      title="הרגלי בילוי וצריכה"
-      subtitle="ניתוח התנהגותי על בסיס שמות בתי העסק"
-      icon={<Utensils className="h-4 w-4 text-muted-foreground" />}
+      }
     >
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <LifestyleCard
-          icon={<Utensils className="h-4 w-4" />}
-          label="יציאות לאוכל"
-          primary={`${lifestyle.restaurantCount} פעמים`}
-          secondary={formatILS(lifestyle.restaurantTotal)}
-          tertiary={
-            avgRestaurant > 0 ? `~${formatILS(avgRestaurant)} בממוצע` : undefined
-          }
-          deltaLabel={
-            summary.hasPrevious
-              ? `${restaurantDelta >= 0 ? '+' : ''}${restaurantDelta} מהחודש שעבר`
-              : undefined
-          }
-          deltaTone={restaurantDelta > 0 ? 'warning' : 'positive'}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <SubscriptionList
+          icon={<UserPlus className="h-3.5 w-3.5" />}
+          label="חדשים"
+          emptyLabel="לא התחילו מנויים חדשים"
+          tone="primary"
+          items={newOnes.map(s => ({
+            merchant: s.merchant,
+            amount: s.amount,
+            sub: `החל ב${s.firstSeen}`,
+          }))}
         />
-        <LifestyleCard
-          icon={<Coffee className="h-4 w-4" />}
-          label="קפה ומאפים"
-          primary={`${lifestyle.coffeeCount} ביקורים`}
-          secondary={formatILS(lifestyle.coffeeTotal)}
-          tertiary={avgCoffee > 0 ? `~${formatILS(avgCoffee)} לפעם` : undefined}
-        />
-        <LifestyleCard
-          icon={<ShoppingBag className="h-4 w-4" />}
-          label="משלוחים"
-          primary={`${lifestyle.deliveryCount} הזמנות`}
-          secondary={formatILS(lifestyle.deliveryTotal)}
-        />
-        <LifestyleCard
-          icon={<PiggyBank className="h-4 w-4" />}
-          label="בית מול בחוץ"
-          primary={`${Math.round(lifestyle.groceryVsRestaurant * 100)}% בבית`}
-          secondary={`${formatILS(lifestyle.groceryTotal)} סופר · ${formatILS(lifestyle.restaurantTotal)} בחוץ`}
+        <SubscriptionList
+          icon={<UserMinus className="h-3.5 w-3.5" />}
+          label="הופסקו"
+          emptyLabel="אין מנויים שהופסקו"
+          tone="neutral"
+          items={stopped.map(s => ({
+            merchant: s.merchant,
+            amount: s.amount,
+            sub: `אחרון ב${s.lastSeen}`,
+          }))}
         />
       </div>
-    </Section>
+    </Card>
   );
 }
 
-function LifestyleCard({
+function SubscriptionList({
   icon,
   label,
-  primary,
-  secondary,
-  tertiary,
-  deltaLabel,
-  deltaTone,
+  emptyLabel,
+  items,
+  tone,
 }: {
   icon: React.ReactNode;
   label: string;
-  primary: string;
-  secondary?: string;
-  tertiary?: string;
-  deltaLabel?: string;
-  deltaTone?: 'positive' | 'warning';
+  emptyLabel: string;
+  items: { merchant: string; amount: number; sub?: string }[];
+  tone: 'primary' | 'neutral';
 }) {
+  const wrapCls =
+    tone === 'primary' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground';
   return (
-    <div className="rounded-lg bg-muted/30 p-3">
-      <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
-        {icon}
-        <span className="text-xs">{label}</span>
+    <div>
+      <div className="flex items-center gap-1.5 mb-1.5 text-xs text-muted-foreground">
+        <span className={cn('w-5 h-5 rounded-md flex items-center justify-center', wrapCls)}>
+          {icon}
+        </span>
+        {label}
       </div>
-      <p className="text-lg font-semibold text-foreground">{primary}</p>
-      {secondary && <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">{secondary}</p>}
-      {tertiary && <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">{tertiary}</p>}
-      {deltaLabel && (
-        <p
-          className={cn(
-            'text-[11px] mt-1 font-medium',
-            deltaTone === 'positive' ? 'text-emerald-600' : 'text-destructive'
-          )}
-        >
-          {deltaLabel}
-        </p>
+      {items.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-1.5">{emptyLabel}</p>
+      ) : (
+        <ul className="space-y-1">
+          {items.map(it => (
+            <li key={it.merchant} className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground break-words leading-tight">{it.merchant}</p>
+                {it.sub && <p className="text-[10px] text-muted-foreground">{it.sub}</p>}
+              </div>
+              <p className="text-sm font-semibold tabular-nums shrink-0">{formatILS(it.amount)}</p>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Behavior / day-of-week section
+// Merchant churn — new + lapsed
 // ---------------------------------------------------------------------------
 
-function BehaviorSection({ summary }: { summary: StatisticsSummary }) {
-  const { behavior } = summary;
-  const weekendPct = Math.round(behavior.weekendRatio * 100);
+function MerchantChurnCard({ summary }: { summary: StatisticsSummary }) {
+  const newOnes = summary.newMerchants;
+  const lapsed = summary.lapsedMerchants;
+  const both = newOnes.length === 0 && lapsed.length === 0;
+
   return (
-    <Section
-      title="התנהגות לאורך החודש"
-      icon={<Calendar className="h-4 w-4 text-muted-foreground" />}
+    <Card
+      title="הגעות ועזיבות"
+      subtitle="בתי עסק חדשים השבוע מול קבועים שלא חזרו"
+      icon={<UserPlus className="h-4 w-4 text-muted-foreground" />}
     >
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded-lg bg-muted/30 p-3">
-          <p className="text-xs text-muted-foreground">סוף שבוע מול חול</p>
-          <p className="text-lg font-semibold mt-1">{weekendPct}%</p>
-          <div className="mt-2 flex h-1.5 rounded-full overflow-hidden bg-muted">
-            <div className="bg-primary/70" style={{ width: `${weekendPct}%` }} />
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1">סופ״ש · חול</p>
+      {both ? (
+        <p className="text-sm text-muted-foreground py-2">אין שינויים בולטים במצבת בתי העסק</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <MerchantList
+            items={newOnes}
+            icon={<UserPlus className="h-3.5 w-3.5" />}
+            emptyLabel="אין בתי עסק חדשים"
+            tone="primary"
+            label="חדשים החודש"
+          />
+          <MerchantList
+            items={lapsed}
+            icon={<UserMinus className="h-3.5 w-3.5" />}
+            emptyLabel="כל הקבועים חזרו"
+            tone="neutral"
+            label="קבועים שלא חזרו"
+            secondaryLabel="חיוב ממוצע"
+          />
         </div>
-        <div className="rounded-lg bg-muted/30 p-3">
-          <p className="text-xs text-muted-foreground">היום החזק</p>
-          <p className="text-lg font-semibold mt-1">יום {behavior.biggestDayName}</p>
-          <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">{formatILS(behavior.biggestDayAmount)} סה״כ</p>
-        </div>
-        <div className="rounded-lg bg-muted/30 p-3">
-          <p className="text-xs text-muted-foreground">רצף ימי הוצאה</p>
-          <p className="text-lg font-semibold mt-1">{behavior.longestSpendingStreak} ימים</p>
-          <p className="text-xs text-muted-foreground mt-0.5">הרצף הארוך ביותר</p>
-        </div>
-        <div className="rounded-lg bg-muted/30 p-3">
-          <p className="text-xs text-muted-foreground">ימים יבשים</p>
-          <p className="text-lg font-semibold mt-1">{behavior.longestDryStreak} ימים</p>
-          <p className="text-xs text-muted-foreground mt-0.5">בלי הוצאה ברצף</p>
-        </div>
-      </div>
-    </Section>
+      )}
+    </Card>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Anomalies section
-// ---------------------------------------------------------------------------
-
-function AnomaliesSection({ summary }: { summary: StatisticsSummary }) {
-  const { anomalies, topMerchants, topMerchantsConcentration } = summary;
-  const hasAnomalies =
-    (anomalies.largestTransaction && anomalies.largestZScore > 2) ||
-    anomalies.spikedCategories.length > 0;
-
+function MerchantList({
+  items,
+  icon,
+  tone,
+  label,
+  emptyLabel,
+  secondaryLabel,
+}: {
+  items: StatisticsSummary['newMerchants'];
+  icon: React.ReactNode;
+  tone: 'primary' | 'neutral';
+  label: string;
+  emptyLabel: string;
+  secondaryLabel?: string;
+}) {
+  const wrapCls =
+    tone === 'primary' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground';
   return (
-    <Section
-      title="חריגות וריכוזיות"
-      subtitle="עסקאות וקטגוריות בולטות יחסית להיסטוריה"
-      icon={<AlertTriangle className="h-4 w-4 text-muted-foreground" />}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="rounded-lg bg-muted/30 p-4">
-          <p className="text-xs text-muted-foreground mb-1">העסקה הגדולה החודש</p>
-          {anomalies.largestTransaction ? (
-            <>
-              <p className="text-2xl font-semibold tabular-nums">
-                {formatILS(anomalies.largestTransaction.chargeAmount)}
-              </p>
-              <p className="text-sm text-foreground mt-1 break-words">
-                {anomalies.largestTransaction.merchantName}
-              </p>
-              <div className="mt-2 flex items-center gap-2 flex-wrap">
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                  {anomalies.largestTransaction.category}
-                </Badge>
-                {anomalies.largestZScore > 2 && (
-                  <Badge className="text-[10px] px-1.5 py-0 bg-amber-500/15 text-amber-700 hover:bg-amber-500/20">
-                    <Flame className="h-2.5 w-2.5 ml-1" />
-                    חריג ({anomalies.largestZScore.toFixed(1)}σ)
-                  </Badge>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">אין עסקאות בחודש זה</p>
-          )}
-        </div>
-
-        <div className="rounded-lg bg-muted/30 p-4">
-          <p className="text-xs text-muted-foreground mb-2">5 העסקים הגדולים</p>
-          {topMerchants.length === 0 ? (
-            <p className="text-sm text-muted-foreground">אין נתונים</p>
-          ) : (
-            <>
-              <p className="text-xs text-muted-foreground mb-2">
-                {formatPct(topMerchantsConcentration)} מההוצאות מתוכם
-              </p>
-              <ul className="space-y-1">
-                {topMerchants.map((m, i) => (
-                  <li key={m.merchant} className="flex items-center gap-2 text-sm">
-                    <span className="w-5 text-xs text-muted-foreground text-center">{i + 1}</span>
-                    <span className="flex-1 truncate font-medium text-foreground">{m.merchant}</span>
-                    <span className="tabular-nums shrink-0">{formatILS(m.amount)}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
+    <div>
+      <div className="flex items-center gap-1.5 mb-1.5 text-xs text-muted-foreground">
+        <span className={cn('w-5 h-5 rounded-md flex items-center justify-center', wrapCls)}>
+          {icon}
+        </span>
+        {label}
       </div>
-
-      {anomalies.spikedCategories.length > 0 && (
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-          {anomalies.spikedCategories.map(c => (
-            <div
-              key={c.category}
-              className="rounded-lg border border-amber-500/20 bg-amber-500/[0.06] p-3"
+      {items.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-1.5">{emptyLabel}</p>
+      ) : (
+        <ul className="space-y-1 max-h-[200px] overflow-auto pl-1">
+          {items.slice(0, 6).map(m => (
+            <li
+              key={m.merchant}
+              className="flex items-center justify-between gap-2 px-1 py-1 rounded-md hover:bg-muted/40 transition-colors"
             >
-              <div className="flex items-center gap-2 mb-1">
-                <Flame className="h-3.5 w-3.5 text-amber-600" />
-                <p className="text-sm font-medium text-foreground">{c.category}</p>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground break-words leading-tight">{m.merchant}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {m.category}{m.count > 1 ? ` · ${m.count} עסקאות` : ''}
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                החודש: {formatILS(c.current)} · ממוצע: {formatILS(c.mean)}
-              </p>
-              <p className="text-xs text-amber-700 mt-1 font-medium">
-                חריגה של {c.z.toFixed(1)} סטיות תקן
-              </p>
-            </div>
+              <div className="text-left shrink-0">
+                <p className="text-sm font-semibold tabular-nums">{formatILS(m.amount)}</p>
+                {secondaryLabel && <p className="text-[10px] text-muted-foreground">{secondaryLabel}</p>}
+              </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-
-      {!hasAnomalies && (
-        <p className="text-xs text-muted-foreground mt-2">לא נמצאו חריגות מהותיות החודש 🎯</p>
-      )}
-    </Section>
+    </div>
   );
 }
