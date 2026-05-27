@@ -1,16 +1,16 @@
-import { Repeat, TrendingUp } from 'lucide-react';
 import { Transaction } from '@/types/transaction';
 import { cn } from '@/lib/utils';
 
 interface StandingOrdersListProps {
   transactions: Transaction[];
-  recurringMerchants?: Set<string>;
 }
 
-export function StandingOrdersList({ transactions, recurringMerchants }: StandingOrdersListProps) {
-  const standingOrders = transactions.filter(
-    t => t.isStandingOrder || (recurringMerchants?.has(t.merchantName) ?? false)
-  );
+// Only true standing orders: rows the bank/CSV explicitly flagged as
+// "הוראת קבע". Auto-detected recurring merchants live in the neighbouring
+// "תשלומים חוזרים" card — duplicating them here just made the two cards
+// indistinguishable.
+export function StandingOrdersList({ transactions }: StandingOrdersListProps) {
+  const standingOrders = transactions.filter(t => t.isStandingOrder);
   
   // Group by merchant
   const grouped = standingOrders.reduce((acc, t) => {
@@ -35,36 +35,36 @@ export function StandingOrdersList({ transactions, recurringMerchants }: Standin
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between pb-3 border-b border-border">
-        <span className="text-sm text-muted-foreground">סה"כ הוראות קבע</span>
-        <span className="font-bold text-foreground">
+    <div className="space-y-2 h-full flex flex-col">
+      <div className="flex items-center justify-between pb-2 border-b border-border shrink-0">
+        <span className="text-xs text-muted-foreground">סה"כ הוראות קבע</span>
+        <span className="font-semibold text-foreground text-sm tabular-nums">
           {totalAmount.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}
         </span>
       </div>
-      
-      <div className="space-y-2 max-h-[250px] overflow-auto">
+
+      <div className="space-y-1 flex-1 min-h-0 overflow-auto pl-1">
         {sortedOrders.map((order, index) => (
-          <div 
+          <div
             key={order.name}
             className={cn(
-              "flex items-center gap-3 p-3 rounded-xl transition-colors",
-              "bg-muted/50 hover:bg-muted"
+              'flex items-center gap-2.5 px-2 py-1.5 rounded-md transition-colors',
+              'hover:bg-muted/60'
             )}
           >
             <div className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold",
-              "bg-primary/10 text-primary"
+              'w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-semibold tabular-nums shrink-0',
+              'bg-primary/10 text-primary'
             )}>
               {index + 1}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-foreground truncate">{order.name}</p>
-              <p className="text-xs text-muted-foreground">{order.count} חיובים</p>
+              <p className="text-sm font-medium text-foreground break-words leading-tight">{order.name}</p>
+              <p className="text-[11px] text-muted-foreground">{order.count} חיובים</p>
             </div>
             <div className="text-left">
-              <p className="font-semibold text-foreground">
-                {order.total.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}
+              <p className="text-sm font-semibold text-foreground tabular-nums">
+                {order.total.toLocaleString('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 })}
               </p>
             </div>
           </div>

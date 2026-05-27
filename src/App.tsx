@@ -9,6 +9,7 @@ import Upload from "@/pages/Upload";
 import Monitor from "@/pages/Monitor";
 import RecurringPaymentsPage from "@/pages/RecurringPayments";
 import BudgetsPage from "@/pages/Budgets";
+import Statistics from "@/pages/Statistics";
 import DataManagement from "@/pages/DataManagement";
 import NotFound from "./pages/NotFound";
 import { Transaction } from '@/types/transaction';
@@ -41,6 +42,15 @@ const mergeUnique = (existing: Transaction[], incoming: Transaction[]) => {
   });
 };
 
+// Renames of category labels that have shipped before. When the user has
+// localStorage overrides pointing at an old label, transparently upgrade them
+// to the new label so the budget/dashboard don't show a stray "unknown" row.
+const CATEGORY_LABEL_MIGRATIONS: Record<string, string> = {
+  'פיננסים וחיסכון': 'פיננסים והעברות',
+};
+
+const migrateLabel = (label: string): string => CATEGORY_LABEL_MIGRATIONS[label] ?? label;
+
 // Apply localStorage overrides. Merchant-level wins over per-id.
 const applyCategoryOverrides = (txs: Transaction[]): Transaction[] => {
   try {
@@ -49,13 +59,38 @@ const applyCategoryOverrides = (txs: Transaction[]): Transaction[] => {
     const idSaved = localStorage.getItem('category_overrides');
     const idOverrides: Record<string, string> = idSaved ? JSON.parse(idSaved) : {};
     return txs.map(t => {
-      if (merchantOverrides[t.merchantName]) return { ...t, category: merchantOverrides[t.merchantName] };
-      if (idOverrides[t.id]) return { ...t, category: idOverrides[t.id] };
-      return t;
+      const newCategory = t.category ? migrateLabel(t.category) : t.category;
+      const base = newCategory === t.category ? t : { ...t, category: newCategory };
+      if (merchantOverrides[t.merchantName]) return { ...base, category: migrateLabel(merchantOverrides[t.merchantName]) };
+      if (idOverrides[t.id]) return { ...base, category: migrateLabel(idOverrides[t.id]) };
+      return base;
     });
   } catch (e) {
     console.error('Failed to load category overrides', e);
     return txs;
+  }
+};
+
+// One-time pass that rewrites localStorage entries that still reference the
+// pre-rename labels. Runs on app boot. Cheap and idempotent.
+const migrateStoredOverrides = () => {
+  try {
+    for (const storageKey of ['merchant_category_overrides', 'category_overrides']) {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) continue;
+      const parsed: Record<string, string> = JSON.parse(raw);
+      let changed = false;
+      for (const [k, v] of Object.entries(parsed)) {
+        const migrated = migrateLabel(v);
+        if (migrated !== v) {
+          parsed[k] = migrated;
+          changed = true;
+        }
+      }
+      if (changed) localStorage.setItem(storageKey, JSON.stringify(parsed));
+    }
+  } catch (e) {
+    console.warn('Override migration skipped:', e);
   }
 };
 
@@ -67,6 +102,11 @@ const App = () => {
   // Without this guard the effect would re-fire every time `transactions`
   // changes (e.g. when the user reclassifies a row) and spam the classify API.
   const autoLabeledRef = useRef(false);
+
+  // Run the localStorage migration once on mount, before any data loads.
+  useEffect(() => {
+    migrateStoredOverrides();
+  }, []);
 
   const loadScraped = useCallback(async () => {
     try {
@@ -257,6 +297,10 @@ const App = () => {
                   <Route
                     path="/budgets"
                     element={<BudgetsPage transactions={transactions} />}
+                  />
+                  <Route
+                    path="/statistics"
+                    element={<Statistics transactions={transactions} />}
                   />
                   <Route path="/data" element={<DataManagement />} />
                   <Route path="*" element={<NotFound />} />

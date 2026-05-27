@@ -14,7 +14,6 @@ import {
   filterTransactionsByPeriod,
   getAvailableYears,
   getAvailableMonths,
-  getRecurringMerchantNames,
   findRecurrentPayments,
   findPaymentChanges,
 } from '@/utils/analytics';
@@ -55,11 +54,6 @@ const RecurringPaymentsPage = ({ transactions }: RecurringPaymentsPageProps) => 
     [transactions, viewMode, selectedMonth, selectedYear]
   );
 
-  const recurringMerchants = useMemo(
-    () => getRecurringMerchantNames(transactions),
-    [transactions]
-  );
-
   const recurrentPayments = useMemo(
     () => findRecurrentPayments(transactions),
     [transactions]
@@ -90,13 +84,13 @@ const RecurringPaymentsPage = ({ transactions }: RecurringPaymentsPageProps) => 
     : `שנת ${selectedYear}`;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">תשלומים חוזרים</h1>
-          <p className="text-muted-foreground mt-1 font-mono text-sm">{periodLabel}</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">תשלומים חוזרים</h1>
+          <p className="text-muted-foreground text-sm">{periodLabel}</p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <PeriodSelector
             viewMode={viewMode}
             selectedYear={selectedYear}
@@ -110,46 +104,58 @@ const RecurringPaymentsPage = ({ transactions }: RecurringPaymentsPageProps) => 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Top row — both cards share a fixed height so the page never grows
+            past the viewport; scrolling stays inside each list. */}
         <ChartCard
           title="הוראות קבע"
-          subtitle="תשלומים קבועים שזוהו"
+          subtitle="חיובים שסומנו בדפי החשבון כ-הוראת קבע"
           delay={0}
+          className="lg:h-[300px] lg:flex lg:flex-col"
         >
-          <StandingOrdersList
-            transactions={filteredTransactions}
-            recurringMerchants={recurringMerchants}
-          />
-        </ChartCard>
-
-        <ChartCard
-          title="תשלומים חוזרים"
-          subtitle="בתי עסק עם חיובים דומים בכל חודש"
-          delay={50}
-        >
-          <RecurrentPayments payments={recurrentPayments} />
+          <div className="flex-1 min-h-0">
+            <StandingOrdersList transactions={filteredTransactions} />
+          </div>
         </ChartCard>
 
         <ChartCard
           title="פריסת תשלומים"
           subtitle="מעקב אחרי עסקאות בתשלומים"
-          delay={100}
+          delay={50}
+          className="lg:h-[300px] lg:flex lg:flex-col"
         >
-          <InstallmentsList
-            transactions={filteredTransactions}
-            isYearlyView={viewMode !== 'month'}
-          />
+          <div className="flex-1 min-h-0">
+            <InstallmentsList
+              transactions={filteredTransactions}
+              isYearlyView={viewMode !== 'month'}
+            />
+          </div>
+        </ChartCard>
+
+        {/* Bottom row */}
+        <ChartCard
+          title="תשלומים חוזרים"
+          subtitle="בתי עסק עם חיובים דומים בכל חודש"
+          delay={100}
+          className="lg:h-[300px] lg:flex lg:flex-col"
+        >
+          <div className="flex-1 min-h-0">
+            <RecurrentPayments payments={recurrentPayments} />
+          </div>
         </ChartCard>
 
         <ChartCard
           title="תשלומים שהשתנו"
           subtitle="הפרשים מהממוצע של החודשים האחרונים"
           delay={150}
+          className="lg:h-[300px] lg:flex lg:flex-col"
         >
-          <PaymentChanges
-            changes={paymentChanges}
-            disabled={viewMode !== 'month'}
-          />
+          <div className="flex-1 min-h-0">
+            <PaymentChanges
+              changes={paymentChanges}
+              disabled={viewMode !== 'month'}
+            />
+          </div>
         </ChartCard>
       </div>
     </div>

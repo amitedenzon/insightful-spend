@@ -1,8 +1,7 @@
 import { Transaction } from '@/types/transaction';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { CreditCard, CalendarClock } from 'lucide-react';
+import { CreditCard } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface InstallmentsListProps {
   transactions: Transaction[];
@@ -46,68 +45,52 @@ export function InstallmentsList({ transactions, isYearlyView = false }: Install
   }
 
   return (
-    <div className="space-y-4" dir="rtl">
-      <ScrollArea className="h-[300px] w-full pl-4">
-        <div className="space-y-3">
+    <div dir="rtl" className="h-full">
+      <ScrollArea className="h-full w-full pl-2">
+        <div className="space-y-1.5">
           {uniqueInstallments.map((t) => {
             const { current, total } = t.installments!;
             const remaining = total - current;
             const remainingDebt = remaining * t.chargeAmount;
+            const done = remaining === 0;
 
             return (
-              <div 
-                key={t.id} 
-                className={`flex flex-col p-4 rounded-xl transition-colors gap-3 border ${
-                  remaining === 0 
-                    ? 'bg-green-100/40 dark:bg-green-900/20 border-green-200/50 hover:bg-green-100/60 dark:hover:bg-green-900/30' 
-                    : 'bg-muted/50 border-transparent hover:bg-muted'
-                }`}
+              <div
+                key={t.id}
+                className={cn(
+                  'flex flex-col gap-1.5 px-2 py-1.5 rounded-md transition-colors',
+                  done ? 'bg-savings/[0.08] hover:bg-savings/[0.12]' : 'hover:bg-muted/60'
+                )}
               >
-                {/* Header: Icon+Name (Start/Right) ... Amount (End/Left) */}
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-3">
-                     <div className={`p-2 rounded-full shrink-0 ${
-                       remaining === 0 ? 'bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-primary/10 text-primary'
-                     }`}>
-                        <CreditCard className="h-4 w-4" />
-                     </div>
-                     <div className="min-w-0">
-                        <div className="font-semibold text-sm truncate">{t.merchantName}</div>
-                        <div className="text-xs text-muted-foreground flex items-center gap-1">
-                          {t.purchaseDate.toLocaleDateString('he-IL')}
-                        </div>
-                     </div>
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={cn(
+                      'w-7 h-7 rounded-md flex items-center justify-center shrink-0',
+                      done ? 'bg-savings/15 text-savings' : 'bg-primary/10 text-primary'
+                    )}>
+                      <CreditCard className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-foreground break-words leading-tight">{t.merchantName}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {t.purchaseDate.toLocaleDateString('he-IL')} · תשלום {current}/{total}
+                      </div>
+                    </div>
                   </div>
                   <div className="text-left shrink-0">
-                    <div className="font-bold text-spending">
-                      {t.chargeAmount.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' })}
+                    <div className={cn('text-sm font-semibold tabular-nums', done ? 'text-savings' : 'text-spending')}>
+                      {t.chargeAmount.toLocaleString('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 })}
                     </div>
-                    <div className="text-xs text-muted-foreground text-left">לחודש</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      יתרה {remainingDebt.toLocaleString('he-IL', { maximumFractionDigits: 0 })}
+                    </div>
                   </div>
                 </div>
-
-                {/* Footer: Badge (Start/Right) ... Remaining Debt (End/Left) */}
-                <div className="flex items-center justify-between mt-1 text-sm text-muted-foreground">
-                  <Badge variant="outline" className="bg-background/80 px-2.5 py-0.5">
-                    תשלום {current} מתוך {total}
-                  </Badge>
-
-                  <div className="text-xs font-medium ml-1">
-                    <span>יתרה:&nbsp;</span>
-                    <span className={remaining === 0 ? 'text-green-600 dark:text-green-400' : ''}>
-                      {remainingDebt.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Progress Bar at Bottom */}
-                <div className="h-1.5 w-full bg-background/50 rounded-full overflow-hidden mt-1">
-                    <div 
-                        className={`h-full rounded-full transition-all duration-500 ${
-                            remaining === 0 ? 'bg-green-500' : 'bg-primary/80'
-                        }`} 
-                        style={{ width: `${(current / total) * 100}%` }}
-                    />
+                <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={cn('h-full rounded-full transition-all duration-500', done ? 'bg-savings' : 'bg-primary/70')}
+                    style={{ width: `${(current / total) * 100}%` }}
+                  />
                 </div>
               </div>
             );

@@ -6,7 +6,7 @@ export const CATEGORIES = {
   SHOPPING: 'קניות, ביגוד והנעלה',
   HEALTH: 'בריאות וביטוחים',
   FAMILY: 'חינוך ומשפחה',
-  FINANCE: 'פיננסים וחיסכון',
+  FINANCE: 'פיננסים והעברות',
   INVESTMENT: 'השקעות',
   OTHER: 'אחר',
 } as const;

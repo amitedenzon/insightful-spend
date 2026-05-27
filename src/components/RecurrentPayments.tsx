@@ -17,39 +17,37 @@ export function RecurrentPayments({ payments }: RecurrentPaymentsProps) {
   }
 
   return (
-    <div className="space-y-3 max-h-[300px] overflow-auto">
-      {payments.slice(0, 10).map((payment, index) => (
-        <div 
+    <div className="space-y-1 h-full overflow-auto pl-1">
+      {payments.slice(0, 12).map((payment) => (
+        <div
           key={payment.merchantName}
           className={cn(
-            "flex items-center gap-3 p-3 rounded-xl transition-colors",
-            "bg-muted/50 hover:bg-muted"
+            'flex items-center gap-2.5 px-2 py-1.5 rounded-md transition-colors',
+            'hover:bg-muted/60'
           )}
         >
           <div className={cn(
-            "w-10 h-10 rounded-lg flex items-center justify-center",
-            "bg-savings/10 text-savings"
+            'w-7 h-7 rounded-md flex items-center justify-center shrink-0',
+            'bg-savings/10 text-savings'
           )}>
-            <TrendingUp className="h-5 w-5" />
+            <TrendingUp className="h-3.5 w-3.5" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-foreground truncate">{payment.merchantName}</p>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant="secondary" className="text-xs">
-                <Calendar className="h-3 w-3 ml-1" />
-                {payment.frequency} חודשים
-              </Badge>
-            </div>
+            <p className="text-sm font-medium text-foreground break-words leading-tight">{payment.merchantName}</p>
+            <Badge variant="secondary" className="text-[10px] mt-0.5 h-4 px-1.5 gap-1">
+              <Calendar className="h-2.5 w-2.5" />
+              {payment.frequency} חודשים
+            </Badge>
           </div>
-          <div className="text-left">
-            <p className="font-semibold text-foreground">
-              ~{payment.averageAmount.toLocaleString('he-IL', { 
-                style: 'currency', 
+          <div className="text-left shrink-0">
+            <p className="text-sm font-semibold text-foreground tabular-nums">
+              ~{payment.averageAmount.toLocaleString('he-IL', {
+                style: 'currency',
                 currency: 'ILS',
-                maximumFractionDigits: 0
+                maximumFractionDigits: 0,
               })}
             </p>
-            <p className="text-xs text-muted-foreground">לחודש</p>
+            <p className="text-[10px] text-muted-foreground">לחודש</p>
           </div>
         </div>
       ))}

@@ -90,30 +90,28 @@ export default function DataManagement() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in p-6 max-w-6xl mx-auto">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-3 bg-primary/10 rounded-xl">
-          <Database className="w-8 h-8 text-primary" />
+    <div className="space-y-4 animate-fade-in max-w-6xl mx-auto">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+          <Database className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-chart-5 text-balance">
-            ניהול נתונים
-          </h1>
-          <p className="text-muted-foreground mt-1 text-lg">
-            צפייה וניהול של הקבצים שהועלו למערכת
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">ניהול נתונים</h1>
+          <p className="text-sm text-muted-foreground">
+            {files.length} קבצים · {files.reduce((sum, f) => sum + (f.transactionCount || 0), 0).toLocaleString('he-IL')} עסקאות
           </p>
         </div>
       </div>
 
-      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+      <div className="bg-card rounded-lg overflow-hidden">
         <Table>
-          <TableHeader className="bg-muted/50">
-            <TableRow>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
               <TableHead className="w-[40%] text-right">שם הקובץ</TableHead>
               <TableHead className="text-right">תאריך העלאה</TableHead>
               <TableHead className="text-right">גודל</TableHead>
               <TableHead className="text-center">עסקאות</TableHead>
-              <TableHead className="text-center w-[150px]">פעולות</TableHead>
+              <TableHead className="text-center w-[120px]">פעולות</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -125,28 +123,30 @@ export default function DataManagement() {
               </TableRow>
             ) : (
               files.map((file) => (
-                <TableRow key={file.name} className="group hover:bg-muted/30 transition-colors">
-                  <TableCell className="font-medium flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-primary/70" />
-                    {file.name}
+                <TableRow key={file.name} className="group hover:bg-muted/40 transition-colors">
+                  <TableCell className="font-medium">
+                    <span className="inline-flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-muted-foreground" />
+                      {file.name}
+                    </span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-muted-foreground text-sm tabular-nums">
                     {file.lastModified ? format(new Date(file.lastModified), 'dd/MM/yyyy HH:mm') : '-'}
                   </TableCell>
-                  <TableCell>{formatSize(file.size || 0)}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm tabular-nums">{formatSize(file.size || 0)}</TableCell>
                   <TableCell className="text-center">
-                    <Badge variant="secondary" className="bg-primary/5 text-primary hover:bg-primary/10 border-primary/20">
+                    <Badge variant="secondary" className="tabular-nums">
                       {file.transactionCount}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDownload(file.name)}
                         title="הורד קובץ"
-                        className="hover:text-primary hover:bg-primary/10"
+                        className="h-8 w-8 hover:text-primary"
                       >
                         <Download className="w-4 h-4" />
                       </Button>
@@ -155,7 +155,7 @@ export default function DataManagement() {
                         size="icon"
                         onClick={() => setFileToDelete(file.name)}
                         title="מחק קובץ"
-                        className="hover:text-destructive hover:bg-destructive/10"
+                        className="h-8 w-8 hover:text-destructive"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

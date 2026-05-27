@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Loader2, ChevronDown, BarChart3, Shield, Zap, ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { FileUpload } from '@/components/FileUpload';
+import { RefreshCw, Loader2, Settings, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -11,8 +9,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { normalizeUploadedFiles } from '@/utils/xlsxToCsv';
 
 interface UploadProps {
   onFilesSelected: (files: File[]) => void;
@@ -28,18 +26,23 @@ type ScrapeStatus = {
   result?: { totalTransactions?: number; errors?: { message: string }[] } | null;
 };
 
+type EnvField = { key: string; label: string; secret: boolean; value: string };
+
+const ACCEPTED_EXTENSIONS = /\.(csv|xlsx?)$/i;
+
 const Upload = ({ onFilesSelected, isLoading, transactionCount, onSync }: UploadProps) => {
   const [syncing, setSyncing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string>('');
   const [otpProvider, setOtpProvider] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState('');
   const [submittingOtp, setSubmittingOtp] = useState(false);
-  const [csvOpen, setCsvOpen] = useState(false);
+  const [credsOpen, setCredsOpen] = useState(false);
+  const [envFields, setEnvFields] = useState<EnvField[] | null>(null);
+  const [savingEnv, setSavingEnv] = useState(false);
   const pollRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Poll /api/scrape/status while the sync is in flight. When the server
-  // signals awaiting_otp we surface the modal; when status reaches done/failed
-  // we finalize the toast and stop polling.
+  // Poll /api/scrape/status while the sync is in flight.
   useEffect(() => {
     if (!syncing) return;
     let cancelled = false;
@@ -121,110 +124,145 @@ const Upload = ({ onFilesSelected, isLoading, transactionCount, onSync }: Upload
     }
   };
 
+  const openCredentials = async () => {
+    setCredsOpen(true);
+    if (envFields !== null) return;
+    try {
+      const res = await fetch('/api/env');
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const { fields } = await res.json();
+      setEnvFields(fields);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'טעינת הפרטים נכשלה';
+      toast.error('שגיאה', { description: msg });
+    }
+  };
+
+  const saveCredentials = async () => {
+    if (!envFields) return;
+    setSavingEnv(true);
+    try {
+      const payload = envFields.reduce<Record<string, string>>((acc, f) => {
+        acc[f.key] = f.value;
+        return acc;
+      }, {});
+      const res = await fetch('/api/env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: payload }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: 'שמירה נכשלה' }));
+        throw new Error(error);
+      }
+      toast.success('הפרטים נשמרו');
+      setCredsOpen(false);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'שמירה נכשלה';
+      toast.error('שגיאה', { description: msg });
+    } finally {
+      setSavingEnv(false);
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const processFiles = async (rawFiles: File[]) => {
+    const accepted = rawFiles.filter(f => ACCEPTED_EXTENSIONS.test(f.name));
+    if (!accepted.length) return;
+
+    let files: File[];
+    try {
+      files = await normalizeUploadedFiles(accepted);
+    } catch (error) {
+      console.error('Failed to convert Excel file to CSV:', error);
+      toast.error('המרה לקובץ CSV נכשלה');
+      return;
+    }
+
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file));
+
+    try {
+      await fetch('/api/upload', { method: 'POST', body: formData });
+      onFilesSelected(files);
+      toast.success(`הועלו ${files.length} קבצים`);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      onFilesSelected(files);
+    }
+  };
+
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col">
       <div className="flex-1 flex items-center justify-center">
-        <div className="w-full max-w-3xl space-y-10 animate-fade-in">
-          {/* Title */}
+        <div className="w-full max-w-2xl space-y-8 animate-fade-in">
           <div className="text-center space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted text-muted-foreground text-xs font-mono">
-              <span className="h-1.5 w-1.5 rounded-full bg-savings" />
-              <span>$ bezbezni --sync</span>
+            <div className="w-14 h-14 mx-auto rounded-xl bg-foreground text-background flex items-center justify-center shadow-sm">
+              <span className="text-3xl font-semibold leading-none">$</span>
             </div>
-            <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight text-foreground">
-              בזבזני
-            </h1>
-            <p className="text-muted-foreground">
-              סנכרן את הנתונים שלך ישירות מספקי האשראי
-            </p>
+            <h1 className="text-4xl font-bold tracking-tight text-foreground">Spender</h1>
             {transactionCount > 0 && (
-              <p className="text-xs font-mono text-savings">
+              <p className="text-xs text-muted-foreground">
                 {transactionCount.toLocaleString('he-IL')} עסקאות בזיכרון
               </p>
             )}
           </div>
 
-          {/* Primary: scrape */}
-          <div className="bg-card border border-border rounded-xl p-8 shadow-sm space-y-5">
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-foreground">סנכרון אוטומטי</h2>
-              <p className="text-sm text-muted-foreground">
-                שליפת עסקאות ישירות מישראכרט. דורש פרטי כניסה ב-<code className="text-foreground font-mono text-xs px-1 py-0.5 rounded bg-muted">.env</code>.
-              </p>
+          {/* Two side-by-side actions */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Button
+                size="lg"
+                onClick={handleSync}
+                disabled={syncing}
+                className="w-full h-14 gap-2 text-base"
+              >
+                {syncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
+                {syncing ? (statusMsg || 'מסנכרן…') : 'סנכרון'}
+              </Button>
+              <button
+                type="button"
+                onClick={openCredentials}
+                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center justify-center gap-1.5"
+              >
+                <Settings className="h-3 w-3" />
+                ניהול פרטי כניסה
+              </button>
             </div>
 
-            <Button
-              size="lg"
-              onClick={handleSync}
-              disabled={syncing}
-              className="w-full gap-2 h-12 text-base"
-            >
-              {syncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
-              {syncing ? (statusMsg || 'מסנכרן…') : 'סנכרן עכשיו'}
-            </Button>
-
-            {syncing && statusMsg && (
-              <p className="text-xs font-mono text-muted-foreground text-center">{statusMsg}</p>
-            )}
-
-            {transactionCount > 0 && !syncing && (
-              <div className="flex justify-center">
-                <Button variant="ghost" size="sm" asChild className="gap-1">
-                  <Link to="/monitor">
-                    דלג לדשבורד
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                  </Link>
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Features */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { icon: Zap, title: 'מהיר', desc: 'דקה בלבד' },
-              { icon: BarChart3, title: 'מנותח', desc: 'גרפים אוטומטיים' },
-              { icon: Shield, title: 'פרטי', desc: 'הכל מקומי' },
-            ].map((feature, i) => (
-              <div
-                key={feature.title}
-                className={cn(
-                  'p-4 rounded-xl bg-card/50 border border-border/60',
-                  'animate-slide-up'
-                )}
-                style={{ animationDelay: `${200 + i * 80}ms` }}
+            <div className="space-y-2">
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={handleUploadClick}
+                disabled={isLoading}
+                className="w-full h-14 gap-2 text-base"
               >
-                <feature.icon className="h-4 w-4 mb-2 text-muted-foreground" />
-                <h3 className="font-medium text-sm text-foreground">{feature.title}</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">{feature.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Secondary: CSV upload (collapsible) */}
-          <div className="border-t border-border pt-6">
-            <button
-              type="button"
-              onClick={() => setCsvOpen(v => !v)}
-              className="w-full flex items-center justify-between text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <span>או העלה קובץ CSV/Excel ידנית</span>
-              <ChevronDown
-                className={cn(
-                  'h-4 w-4 transition-transform',
-                  csvOpen && 'rotate-180'
+                {isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="h-5 w-5" />
                 )}
+                העלאת קובץ
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">CSV / Excel</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                multiple
+                className="hidden"
+                onChange={(e) => processFiles(Array.from(e.target.files || []))}
               />
-            </button>
-            {csvOpen && (
-              <div className="mt-4 animate-fade-in">
-                <FileUpload onFilesSelected={onFilesSelected} isLoading={isLoading} />
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
 
+      {/* OTP modal */}
       <Dialog open={!!otpProvider} onOpenChange={() => { /* must submit or wait */ }}>
         <DialogContent dir="rtl" className="max-w-sm">
           <DialogHeader>
@@ -240,12 +278,61 @@ const Upload = ({ onFilesSelected, isLoading, transactionCount, onSync }: Upload
             inputMode="numeric"
             autoFocus
             maxLength={8}
-            className="text-center text-lg tracking-widest font-mono"
+            className="text-center text-lg tracking-widest"
             onKeyDown={(e) => { if (e.key === 'Enter') handleOtpSubmit(); }}
           />
           <DialogFooter>
             <Button onClick={handleOtpSubmit} disabled={!otpCode.trim() || submittingOtp} className="w-full">
               {submittingOtp ? <Loader2 className="h-4 w-4 animate-spin" /> : 'שלח קוד'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Credentials editor */}
+      <Dialog open={credsOpen} onOpenChange={setCredsOpen}>
+        <DialogContent dir="rtl" className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>פרטי כניסה לסנכרון</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              הפרטים נשמרים בקובץ <code className="text-foreground text-xs">.env</code> מקומי בלבד.
+            </p>
+          </DialogHeader>
+
+          {envFields === null ? (
+            <div className="py-8 flex justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pl-1">
+              {envFields.map((f, i) => (
+                <div key={f.key} className="space-y-1">
+                  <label className="text-xs text-muted-foreground">{f.label}</label>
+                  <Input
+                    type={f.secret ? 'password' : 'text'}
+                    value={f.value}
+                    onChange={(e) => {
+                      setEnvFields(prev => {
+                        if (!prev) return prev;
+                        const next = [...prev];
+                        next[i] = { ...next[i], value: e.target.value };
+                        return next;
+                      });
+                    }}
+                    dir="ltr"
+                    className="text-left"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setCredsOpen(false)} disabled={savingEnv}>
+              ביטול
+            </Button>
+            <Button onClick={saveCredentials} disabled={!envFields || savingEnv}>
+              {savingEnv ? <Loader2 className="h-4 w-4 animate-spin" /> : 'שמור'}
             </Button>
           </DialogFooter>
         </DialogContent>

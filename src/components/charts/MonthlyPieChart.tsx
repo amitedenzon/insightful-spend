@@ -1,4 +1,4 @@
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface MonthlyPieChartProps {
   data: { month: string; amount: number }[];
@@ -6,19 +6,26 @@ interface MonthlyPieChartProps {
 }
 
 const COLORS = [
-  'hsl(239, 84%, 67%)',
-  'hsl(160, 84%, 39%)',
-  'hsl(350, 89%, 60%)',
-  'hsl(38, 92%, 50%)',
-  'hsl(280, 65%, 60%)',
-  'hsl(200, 80%, 55%)',
-  'hsl(239, 60%, 75%)',
-  'hsl(160, 60%, 55%)',
-  'hsl(350, 70%, 70%)',
-  'hsl(38, 70%, 60%)',
-  'hsl(280, 50%, 70%)',
-  'hsl(200, 60%, 65%)',
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+  'hsl(var(--chart-6))',
+  'hsl(var(--chart-1) / 0.6)',
+  'hsl(var(--chart-2) / 0.6)',
+  'hsl(var(--chart-3) / 0.6)',
+  'hsl(var(--chart-4) / 0.6)',
+  'hsl(var(--chart-5) / 0.6)',
+  'hsl(var(--chart-6) / 0.6)',
 ];
+
+const formatILS = (n: number) =>
+  n.toLocaleString('he-IL', {
+    style: 'currency',
+    currency: 'ILS',
+    maximumFractionDigits: 0,
+  });
 
 export function MonthlyPieChart({ data, onMonthClick }: MonthlyPieChartProps) {
   const filteredData = data.filter(d => d.amount > 0);
@@ -26,61 +33,83 @@ export function MonthlyPieChart({ data, onMonthClick }: MonthlyPieChartProps) {
 
   if (total === 0) {
     return (
-      <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+      <div className="h-[280px] flex items-center justify-center text-muted-foreground">
         אין נתונים לשנה זו
       </div>
     );
   }
 
   return (
-    <div className="h-[300px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={filteredData}
-            cx="50%"
-            cy="50%"
-            innerRadius={50}
-            outerRadius={90}
-            paddingAngle={2}
-            dataKey="amount"
-            nameKey="month"
-            strokeWidth={0}
-            onClick={(data) => onMonthClick?.(data.month)}
-            className="cursor-pointer"
-          >
-            {filteredData.map((entry, index) => (
-              <Cell 
-                key={`cell-${index}`} 
-                fill={COLORS[data.findIndex(d => d.month === entry.month) % COLORS.length]}
-                className="transition-all duration-300 hover:opacity-80"
+    <div className="flex items-center gap-4 min-h-[260px]">
+      <div className="relative w-[160px] h-[160px] shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={filteredData}
+              cx="50%"
+              cy="50%"
+              innerRadius={55}
+              outerRadius={78}
+              dataKey="amount"
+              nameKey="month"
+              stroke="hsl(var(--card))"
+              strokeWidth={2}
+              onClick={(d) => onMonthClick?.(d.month)}
+              className="cursor-pointer outline-none"
+            >
+              {filteredData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={COLORS[data.findIndex(d => d.month === entry.month) % COLORS.length]}
+                />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'hsl(var(--card))',
+                border: '1px solid hsl(var(--border))',
+                borderRadius: '8px',
+                fontSize: '12px',
+                direction: 'rtl',
+                color: 'hsl(var(--foreground))',
+                padding: '6px 10px',
+              }}
+              itemStyle={{ color: 'hsl(var(--foreground))', padding: 0 }}
+              formatter={(value: number, name: string) => [formatILS(value), name]}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <div className="text-[10px] text-muted-foreground">סה״כ</div>
+          <div className="text-base font-semibold text-foreground tabular-nums">{formatILS(total)}</div>
+        </div>
+      </div>
+
+      <ul className="flex-1 min-w-0 space-y-1 text-sm max-h-[240px] overflow-auto pl-1">
+        {filteredData.map((entry) => {
+          const colorIndex = data.findIndex(d => d.month === entry.month);
+          const pct = total > 0 ? (entry.amount / total) * 100 : 0;
+          return (
+            <li
+              key={entry.month}
+              onClick={() => onMonthClick?.(entry.month)}
+              className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-1.5 py-1 transition-colors"
+            >
+              <span
+                className="w-2.5 h-2.5 rounded-sm shrink-0"
+                style={{ backgroundColor: COLORS[colorIndex % COLORS.length] }}
               />
-            ))}
-          </Pie>
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'hsl(var(--card))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '12px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-              direction: 'rtl',
-              color: 'hsl(var(--foreground))',
-            }}
-            itemStyle={{ color: 'hsl(var(--foreground))' }}
-            labelStyle={{ color: 'hsl(var(--foreground))' }}
-            formatter={(value: number, name: string) => [
-              value.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' }),
-              name
-            ]}
-          />
-          <Legend 
-            layout="horizontal"
-            verticalAlign="bottom"
-            align="center"
-            wrapperStyle={{ direction: 'rtl', fontSize: '12px' }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+              <span className="flex-1 min-w-0 text-foreground">{entry.month}</span>
+              <span className="text-muted-foreground tabular-nums text-xs w-10 text-left">
+                {pct.toFixed(0)}%
+              </span>
+              <span className="font-medium text-foreground tabular-nums text-xs w-20 text-left">
+                {formatILS(entry.amount)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

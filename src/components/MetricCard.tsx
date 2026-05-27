@@ -18,52 +18,42 @@ export function MetricCard({
   variant = 'default',
   delay = 0,
 }: MetricCardProps) {
-  // Subtle left-edge accent rather than full-card gradients. Reads as a clean
-  // code-editor swatch instead of a colored marketing tile.
-  const accent = {
-    default: 'before:bg-muted-foreground/30',
-    spending: 'before:bg-spending',
-    savings: 'before:bg-savings',
-    primary: 'before:bg-primary',
+  // Soft tinted background + colored value to bring back the
+  // red-expenses / green-income / blue-recurring scheme. Background tint kept
+  // very light so it still reads as "elegant" rather than marketing.
+  const bg = {
+    default: 'bg-card',
+    spending: 'bg-spending/[0.07]',
+    savings: 'bg-savings/[0.07]',
+    primary: 'bg-primary/[0.07]',
   }[variant];
 
-  // Values stay neutral — the accent bar already conveys variant. Only the
-  // spending tile gets a touch of color so the headline expense number reads
-  // at a glance.
   const valueColor = {
     default: 'text-foreground',
-    spending: 'text-spending',
-    savings: 'text-foreground',
-    primary: 'text-foreground',
-  }[variant];
-
-  const iconColor = {
-    default: 'text-muted-foreground',
     spending: 'text-spending',
     savings: 'text-savings',
     primary: 'text-primary',
   }[variant];
 
+  const iconWrap = {
+    default: 'bg-muted text-muted-foreground',
+    spending: 'bg-spending/15 text-spending',
+    savings: 'bg-savings/15 text-savings',
+    primary: 'bg-primary/15 text-primary',
+  }[variant];
+
   return (
     <div
       className={cn(
-        'relative bg-card border border-border rounded-xl p-5 animate-slide-up',
-        'before:absolute before:top-4 before:bottom-4 before:right-0 before:w-[3px] before:rounded-l-full',
-        accent
+        'rounded-lg p-4 animate-slide-up',
+        bg
       )}
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
-            {title}
-          </p>
-          <p
-            className={cn(
-              'text-3xl font-semibold tracking-tight tabular-nums truncate',
-              valueColor
-            )}
-          >
+          <p className="text-sm text-muted-foreground mb-1.5">{title}</p>
+          <p className={cn('text-3xl font-semibold tracking-tight tabular-nums', valueColor)}>
             {typeof value === 'number'
               ? value.toLocaleString('he-IL', {
                   style: 'currency',
@@ -72,12 +62,12 @@ export function MetricCard({
                 })
               : value}
           </p>
-          {subtitle && (
-            <p className="text-xs text-muted-foreground mt-1.5 truncate">{subtitle}</p>
-          )}
+          {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
         </div>
         {icon && (
-          <div className={cn('shrink-0', iconColor)}>{icon}</div>
+          <div className={cn('w-9 h-9 rounded-md flex items-center justify-center shrink-0', iconWrap)}>
+            {icon}
+          </div>
         )}
       </div>
     </div>

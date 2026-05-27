@@ -34,7 +34,7 @@ export function TopMerchants({ merchants }: TopMerchantsProps) {
               <div className="flex items-center gap-2 min-w-0">
                 <span
                   className={cn(
-                    'w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-mono font-semibold shrink-0',
+                    'w-5 h-5 rounded-md flex items-center justify-center text-[11px] font-semibold shrink-0 tabular-nums',
                     index === 0 && 'bg-spending/15 text-spending',
                     index === 1 && 'bg-warning/15 text-warning',
                     index >= 2 && 'bg-muted text-muted-foreground'
@@ -42,7 +42,7 @@ export function TopMerchants({ merchants }: TopMerchantsProps) {
                 >
                   {index + 1}
                 </span>
-                <span className="font-medium text-foreground truncate">
+                <span className="font-medium text-foreground break-words">
                   {merchant.name}
                 </span>
               </div>
@@ -61,7 +61,7 @@ export function TopMerchants({ merchants }: TopMerchantsProps) {
                 style={{ width: `${percentage}%` }}
               />
             </div>
-            <div className="text-[11px] text-muted-foreground font-mono">
+            <div className="text-[11px] text-muted-foreground">
               {merchant.count} עסקאות
             </div>
           </div>

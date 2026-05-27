@@ -164,6 +164,81 @@ Rules:
   }
 });
 
+// AI-generated insights for the Statistics page. The client sends a pre-summarized
+// payload (no raw transactions). Gemini returns 4–6 short Hebrew insights with
+// severity + icon hint that the page renders as badge cards.
+app.post('/api/insights', async (req, res) => {
+  try {
+    if (!genai) {
+      return res.status(500).json({ error: 'Gemini API key not configured' });
+    }
+    const summary = req.body?.summary;
+    if (!summary || typeof summary !== 'object') {
+      return res.status(400).json({ error: 'summary object required' });
+    }
+
+    const systemInstruction = `אתה יועץ פיננסי אישי שמנתח נתוני אשראי של משתמש ישראלי. אתה מקבל סיכום מובנה של החודש הנוכחי בהשוואה לחודשים קודמים, וצריך להפיק 4-6 תובנות קצרות, חדות ושימושיות בעברית.
+
+הנחיות חשובות:
+1. כל התובנות חייבות להיות בעברית טבעית, לא מתורגמת.
+2. תובנה טובה מסבירה למה המספר משמעותי, לא רק חוזרת עליו.
+3. תעדיף תובנות שמשלבות כמה נקודות מידע (למשל, "אכלת בחוץ פי 3 יותר וזה הקטגוריה הכי גדלה החודש").
+4. אם יש משהו חיובי - ציין אותו. אל תהיה רק שלילי.
+5. הימנע מקלישאות כמו "חשוב לעקוב אחרי ההוצאות".
+6. כל תובנה צריכה להיות 1-2 משפטים בלבד, ברורה ומדויקת.
+7. הימנע מהמלצות גנריות. אם אתה ממליץ, שתהיה המלצה ספציפית הקשורה לנתון.
+8. בכותרת השתמש ב-3-5 מילים בלבד, חד וממוקד.
+9. תן עדיפות לתובנות שמראות שינוי משמעותי (גידול/קיטון מעל 25%), דפוסים חדשים (בית עסק חדש, מנוי שהתחיל), או ערכים חריגים (z-score גבוה, חודש שיא לקטגוריה).
+10. אם אין מספיק נתונים (למשל אין חודש קודם), צור תובנות תיאוריות על החודש הנוכחי בלבד.
+11. severity:
+   - "positive" — חיסכון, הקטנת הוצאה, התנהגות טובה
+   - "neutral" — תצפית מעניינת בלי טון שיפוטי
+   - "warning" — עלייה משמעותית או דפוס שצריך תשומת לב
+   - "alert" — חריגה חמורה (פי 2 מהממוצע, מנוי חדש יקר, עסקה ענקית)
+12. iconHint - בחר אחד מ: "trending-up", "trending-down", "alert-triangle", "sparkles", "flame", "coffee", "utensils", "shopping-bag", "calendar", "repeat", "wallet", "piggy-bank", "info"
+13. headline - משפט אחד קצר (עד 10 מילים) שמסכם את החודש בעברית.`;
+
+    const response = await genai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `נתח את הסיכום הבא והפק 4-6 תובנות בעברית:\n\n${JSON.stringify(summary, null, 2)}`,
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            insights: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  body: { type: Type.STRING },
+                  severity: {
+                    type: Type.STRING,
+                    enum: ['positive', 'neutral', 'warning', 'alert'],
+                  },
+                  iconHint: { type: Type.STRING },
+                  suggestion: { type: Type.STRING },
+                },
+                required: ['title', 'body', 'severity', 'iconHint'],
+              },
+            },
+            headline: { type: Type.STRING },
+          },
+          required: ['insights', 'headline'],
+        },
+      },
+    });
+
+    const parsed = JSON.parse(response.text);
+    res.json({ ...parsed, usage: response.usageMetadata });
+  } catch (error) {
+    console.error('Insights error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate insights' });
+  }
+});
+
 // Start a scrape in the background; HTTP response returns immediately so the
 // client can poll /api/scrape/status. Required because Isracard's OTP pause
 // can hold the scrape open for as long as the user takes to type a code.
@@ -197,6 +272,101 @@ app.get('/api/scraped', (req, res) => {
     res.json({ transactions: readAllScraped(), meta: readScrapedMeta() });
   } catch (error) {
     res.status(500).json({ error: error.message || 'Failed to read scraped data' });
+  }
+});
+
+// --- Scraper credentials editor -------------------------------------------
+// The scraper reads from .env at server startup. The credentials are only
+// useful to a malicious caller who already has access to localhost, which is
+// the same threat model as the rest of the app. We bind the server to
+// 0.0.0.0 in dev for LAN access, but writes are restricted to the keys we
+// know about so a misconfigured client can't blow away unrelated env state.
+const envPath = path.join(__dirname, '..', '.env');
+const ENV_SCHEMA = [
+  { key: 'ISRACARD_CARD1_ID',       label: 'ישראכרט #1 · ת״ז',         secret: false },
+  { key: 'ISRACARD_CARD1_PASSWORD', label: 'ישראכרט #1 · סיסמה',       secret: true  },
+  { key: 'ISRACARD_CARD1_CARD6',    label: 'ישראכרט #1 · 6 ספרות',     secret: false },
+  { key: 'ISRACARD_CARD2_ID',       label: 'ישראכרט #2 · ת״ז',         secret: false },
+  { key: 'ISRACARD_CARD2_PASSWORD', label: 'ישראכרט #2 · סיסמה',       secret: true  },
+  { key: 'ISRACARD_CARD2_CARD6',    label: 'ישראכרט #2 · 6 ספרות',     secret: false },
+  { key: 'OTSAR_USERNAME',          label: 'אוצר החייל · משתמש',        secret: false },
+  { key: 'OTSAR_PASSWORD',          label: 'אוצר החייל · סיסמה',        secret: true  },
+  { key: 'SCRAPER_LOOKBACK_DAYS',   label: 'היסטוריה (ימים)',           secret: false },
+  { key: 'SCRAPER_SHOW_BROWSER',    label: 'הצג חלון Chromium',         secret: false },
+];
+
+function parseEnvFile(content) {
+  const out = {};
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+app.get('/api/env', (req, res) => {
+  try {
+    const raw = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf-8') : '';
+    const parsed = parseEnvFile(raw);
+    const fields = ENV_SCHEMA.map(({ key, label, secret }) => ({
+      key,
+      label,
+      secret,
+      value: parsed[key] ?? '',
+    }));
+    res.json({ fields });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Failed to read .env' });
+  }
+});
+
+app.post('/api/env', (req, res) => {
+  try {
+    const updates = req.body?.fields || {};
+    if (typeof updates !== 'object' || Array.isArray(updates)) {
+      return res.status(400).json({ error: 'fields must be an object of key→value' });
+    }
+
+    const allowed = new Set(ENV_SCHEMA.map(f => f.key));
+    const raw = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf-8') : '';
+    const lines = raw.split(/\r?\n/);
+    const seen = new Set();
+
+    const next = lines.map(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return line;
+      const eq = trimmed.indexOf('=');
+      if (eq <= 0) return line;
+      const key = trimmed.slice(0, eq).trim();
+      if (!allowed.has(key)) return line;
+      if (!(key in updates)) return line;
+      seen.add(key);
+      const value = String(updates[key] ?? '');
+      // Live process.env so the next scrape picks up the new value without a restart.
+      process.env[key] = value;
+      return `${key}=${value}`;
+    });
+
+    // Append any allowed keys that weren't in the file.
+    for (const [key, value] of Object.entries(updates)) {
+      if (!allowed.has(key) || seen.has(key)) continue;
+      next.push(`${key}=${value}`);
+      process.env[key] = String(value);
+    }
+
+    fs.writeFileSync(envPath, next.join('\n'), 'utf-8');
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Save .env failed:', error);
+    res.status(500).json({ error: error.message || 'Failed to write .env' });
   }
 });
 

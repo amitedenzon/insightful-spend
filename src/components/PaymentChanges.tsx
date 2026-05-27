@@ -28,7 +28,7 @@ export function PaymentChanges({ changes, disabled }: PaymentChangesProps) {
   }
 
   return (
-    <div className="space-y-2 max-h-[280px] overflow-auto">
+    <div className="space-y-1 h-full overflow-auto pl-1">
       {changes.map((c) => {
         const isIncrease = c.delta > 0;
         const baselineLabel = c.baselineMonthCount === 1
@@ -37,32 +37,26 @@ export function PaymentChanges({ changes, disabled }: PaymentChangesProps) {
         return (
           <div
             key={c.merchantName}
-            className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
+            className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/60 transition-colors"
           >
             <div
               className={cn(
-                'w-8 h-8 rounded-lg flex items-center justify-center',
-                isIncrease
-                  ? 'bg-destructive/10 text-destructive'
-                  : 'bg-emerald-500/10 text-emerald-600'
+                'w-7 h-7 rounded-md flex items-center justify-center shrink-0',
+                isIncrease ? 'bg-destructive/10 text-destructive' : 'bg-savings/10 text-savings'
               )}
             >
-              {isIncrease ? (
-                <TrendingUp className="w-4 h-4" />
-              ) : (
-                <TrendingDown className="w-4 h-4" />
-              )}
+              {isIncrease ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-foreground truncate">{c.merchantName}</p>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-sm font-medium text-foreground break-words leading-tight">{c.merchantName}</p>
+              <p className="text-[10px] text-muted-foreground">
                 {formatILS(c.currentAmount)} · {baselineLabel}: {formatILS(c.baselineAmount)}
               </p>
             </div>
             <div
               className={cn(
-                'text-left font-semibold whitespace-nowrap',
-                isIncrease ? 'text-destructive' : 'text-emerald-600'
+                'text-left text-sm font-semibold whitespace-nowrap tabular-nums shrink-0',
+                isIncrease ? 'text-destructive' : 'text-savings'
               )}
             >
               {isIncrease ? '+' : ''}

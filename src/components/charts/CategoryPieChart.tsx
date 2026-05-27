@@ -1,85 +1,115 @@
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface CategoryPieChartProps {
   data: { name: string; value: number }[];
   onCategoryClick?: (category: string) => void;
 }
 
+// Tied to the chart-N CSS variables so the palette tracks the theme. Calmer
+// than the previous hard-coded jewel tones.
 const COLORS = [
-  'hsl(239, 84%, 67%)', // Primary
-  'hsl(160, 84%, 39%)', // Success
-  'hsl(350, 89%, 60%)', // Destructive
-  'hsl(38, 92%, 50%)',  // Warning
-  'hsl(280, 65%, 60%)', // Purple
-  'hsl(200, 80%, 55%)', // Blue
-  'hsl(239, 60%, 75%)', // Light Indigo
-  'hsl(160, 60%, 55%)', // Light Emerald
-  'hsl(350, 70%, 70%)', // Light Rose
-  'hsl(38, 70%, 60%)',  // Light Amber
-  'hsl(20, 80%, 60%)',  // Orange
-  'hsl(180, 70%, 45%)', // Teal
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+  'hsl(var(--chart-6))',
+  'hsl(var(--chart-1) / 0.6)',
+  'hsl(var(--chart-2) / 0.6)',
+  'hsl(var(--chart-3) / 0.6)',
+  'hsl(var(--chart-4) / 0.6)',
 ];
+
+const formatILS = (n: number) =>
+  n.toLocaleString('he-IL', {
+    style: 'currency',
+    currency: 'ILS',
+    maximumFractionDigits: 0,
+  });
 
 export function CategoryPieChart({ data, onCategoryClick }: CategoryPieChartProps) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
 
   if (total === 0) {
     return (
-      <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+      <div className="h-[280px] flex items-center justify-center text-muted-foreground">
         אין נתונים לתקופה זו
       </div>
     );
   }
 
   return (
-    <div className="h-[300px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={60}
-            outerRadius={100}
-            paddingAngle={2}
-            dataKey="value"
-            nameKey="name"
-            strokeWidth={0}
-            onClick={(d) => onCategoryClick?.(d.name)}
-            className="cursor-pointer"
-          >
-            {data.map((_, index) => (
-              <Cell 
-                key={`cell-${index}`} 
-                fill={COLORS[index % COLORS.length]}
-                className="transition-all duration-300 hover:opacity-80"
+    <div className="flex items-center gap-4 min-h-[260px]">
+      {/* Donut with the total stamped in the middle. Thin, no padding angle. */}
+      <div className="relative w-[160px] h-[160px] shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="50%"
+              innerRadius={55}
+              outerRadius={78}
+              dataKey="value"
+              nameKey="name"
+              stroke="hsl(var(--card))"
+              strokeWidth={2}
+              onClick={(d) => onCategoryClick?.(d.name)}
+              className="cursor-pointer outline-none"
+            >
+              {data.map((_, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'hsl(var(--card))',
+                border: '1px solid hsl(var(--border))',
+                borderRadius: '8px',
+                fontSize: '12px',
+                direction: 'rtl',
+                color: 'hsl(var(--foreground))',
+                padding: '6px 10px',
+              }}
+              itemStyle={{ color: 'hsl(var(--foreground))', padding: 0 }}
+              labelStyle={{ color: 'hsl(var(--foreground))' }}
+              formatter={(value: number, name: string) => [formatILS(value), name]}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <div className="text-[10px] text-muted-foreground">סה״כ</div>
+          <div className="text-base font-semibold text-foreground tabular-nums">
+            {formatILS(total)}
+          </div>
+        </div>
+      </div>
+
+      {/* Compact legend with percentage + amount. Click jumps to that category. */}
+      <ul className="flex-1 min-w-0 space-y-1.5 text-sm max-h-[240px] overflow-auto pl-1">
+        {data.map((d, index) => {
+          const pct = total > 0 ? (d.value / total) * 100 : 0;
+          return (
+            <li
+              key={d.name}
+              onClick={() => onCategoryClick?.(d.name)}
+              className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-1.5 py-1 transition-colors"
+            >
+              <span
+                className="w-2.5 h-2.5 rounded-sm shrink-0"
+                style={{ backgroundColor: COLORS[index % COLORS.length] }}
               />
-            ))}
-          </Pie>
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'hsl(var(--card))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '12px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-              direction: 'rtl',
-              color: 'hsl(var(--foreground))',
-            }}
-            itemStyle={{ color: 'hsl(var(--foreground))' }}
-            labelStyle={{ color: 'hsl(var(--foreground))' }}
-            formatter={(value: number, name: string) => [
-              value.toLocaleString('he-IL', { style: 'currency', currency: 'ILS' }),
-              name
-            ]}
-          />
-          <Legend 
-            layout="horizontal"
-            verticalAlign="bottom"
-            align="center"
-            wrapperStyle={{ direction: 'rtl', fontSize: '12px', paddingTop: '10px' }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+              <span className="flex-1 min-w-0 text-foreground">{d.name}</span>
+              <span className="text-muted-foreground tabular-nums text-xs w-10 text-left">
+                {pct.toFixed(0)}%
+              </span>
+              <span className="font-medium text-foreground tabular-nums text-xs w-20 text-left">
+                {formatILS(d.value)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

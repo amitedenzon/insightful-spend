@@ -99,7 +99,7 @@ const BudgetsPage = ({ transactions = [] }: BudgetsPageProps) => {
       </div>
 
         {/* Budget total input */}
-        <div className="bg-card border border-border rounded-xl p-6 space-y-3">
+        <div className="bg-card rounded-lg p-5 space-y-3">
           <label className="block text-sm font-medium text-foreground" htmlFor="budget-total">
             תקציב חודשי כולל
           </label>
@@ -129,7 +129,7 @@ const BudgetsPage = ({ transactions = [] }: BudgetsPageProps) => {
         </div>
 
         {/* Allocation + live progress */}
-        <div className="bg-card border border-border rounded-xl p-6 space-y-5">
+        <div className="bg-card rounded-lg p-5 space-y-5">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
             <h2 className="font-semibold text-foreground">חלוקה אוטומטית והתקדמות</h2>

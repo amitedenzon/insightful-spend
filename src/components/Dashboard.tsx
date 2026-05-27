@@ -68,7 +68,7 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
   );
   const [selectedMonth, setSelectedMonth] = useState(availableMonths[availableMonths.length - 1] ?? 0);
   const [viewMode, setViewMode] = useState<ViewMode>('month');
-  const [pieMode, setPieMode] = useState<'time' | 'category'>('time');
+  const [pieMode, setPieMode] = useState<'time' | 'category'>('category');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
@@ -154,7 +154,7 @@ export function Dashboard({ transactions, onCategoryChange, onBatchCategoryChang
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">מעקב הוצאות</h1>
-          <p className="text-muted-foreground mt-1 font-mono text-sm">{periodLabel}</p>
+          <p className="text-muted-foreground mt-1 text-sm">{periodLabel}</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -380,7 +380,7 @@ function DayDetailDialog({ day, month, year, transactions, onClose }: DayDetailD
               {dayTransactions.map(t => (
                 <li key={t.id} className="py-3 flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-foreground truncate">{t.merchantName}</div>
+                    <div className="font-medium text-foreground break-words">{t.merchantName}</div>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge variant="secondary" className="text-xs">{t.category}</Badge>
                       {t.isStandingOrder && (

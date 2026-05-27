@@ -107,7 +107,7 @@ export function TransactionTable({ transactions, onCategoryChange, onBatchCatego
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden animate-slide-up" style={{ animationDelay: '400ms' }}>
+    <div className="bg-card rounded-lg overflow-hidden animate-slide-up" style={{ animationDelay: '400ms' }}>
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-4">
           <div className="relative flex-1">
@@ -241,7 +241,7 @@ export function TransactionTable({ transactions, onCategoryChange, onBatchCatego
                       currency: 'ILS' 
                     })}
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm max-w-[150px] truncate" title={t.additionalInfo}>
+                  <TableCell className="text-muted-foreground text-sm max-w-[260px] break-words" title={t.additionalInfo}>
                     {t.additionalInfo}
                     {t.isStandingOrder && (
                       <Badge variant="outline" className="mr-2 gap-1 inline-flex">
