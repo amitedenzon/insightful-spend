@@ -165,19 +165,11 @@ Rules:
 });
 
 // AI-generated insights for the Statistics page. The client sends a pre-summarized
-// payload (no raw transactions). Gemini returns 4–6 short Hebrew insights with
-// severity + icon hint that the page renders as badge cards.
-app.post('/api/insights', async (req, res) => {
-  try {
-    if (!genai) {
-      return res.status(500).json({ error: 'Gemini API key not configured' });
-    }
-    const summary = req.body?.summary;
-    if (!summary || typeof summary !== 'object') {
-      return res.status(400).json({ error: 'summary object required' });
-    }
-
-    const systemInstruction = `אתה יועץ פיננסי אישי שמנתח נתוני אשראי של משתמש ישראלי. אתה מקבל סיכום מובנה של החודש הנוכחי בהשוואה לחודשים קודמים, וצריך להפיק 4-6 תובנות קצרות, חדות ושימושיות בעברית.
+// payload (no raw transactions). The endpoint streams Server-Sent Events: a
+// `headline` event first, then one `insight` event per object as it completes
+// inside the model's JSON array, then `done`. The page renders each as it
+// arrives so users see useful text in ~1s instead of waiting for the full JSON.
+const INSIGHTS_SYSTEM_INSTRUCTION = `אתה יועץ פיננסי אישי שמנתח נתוני אשראי של משתמש ישראלי. אתה מקבל סיכום מובנה של החודש הנוכחי בהשוואה לחודשים קודמים, וצריך להפיק 4-6 תובנות קצרות, חדות ושימושיות בעברית.
 
 הנחיות חשובות:
 1. כל התובנות חייבות להיות בעברית טבעית, לא מתורגמת.
@@ -198,44 +190,233 @@ app.post('/api/insights', async (req, res) => {
 12. iconHint - בחר אחד מ: "trending-up", "trending-down", "alert-triangle", "sparkles", "flame", "coffee", "utensils", "shopping-bag", "calendar", "repeat", "wallet", "piggy-bank", "info"
 13. headline - משפט אחד קצר (עד 10 מילים) שמסכם את החודש בעברית.`;
 
-    const response = await genai.models.generateContent({
+// headline first in property order so Gemini emits it before the (longer) insights
+// array — lets us render the headline within the first ~200ms of streaming.
+const INSIGHTS_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    headline: { type: Type.STRING },
+    insights: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          body: { type: Type.STRING },
+          severity: {
+            type: Type.STRING,
+            enum: ['positive', 'neutral', 'warning', 'alert'],
+          },
+          iconHint: { type: Type.STRING },
+          suggestion: { type: Type.STRING },
+        },
+        required: ['title', 'body', 'severity', 'iconHint'],
+      },
+    },
+  },
+  required: ['headline', 'insights'],
+};
+
+// Walks the accumulating model text and yields complete JSON values from
+// it. Designed for the shape `{"headline": "...", "insights": [ {...}, {...} ]}`.
+// Tracks string state and brace depth so a `}` inside a quoted string doesn't
+// close an object. Each call to `feed(chunk)` appends and emits any newly
+// completed pieces via the supplied callback.
+function makeInsightsExtractor(onEvent) {
+  let buffer = '';
+  let cursor = 0;
+  let headlineEmitted = false;
+  let arrayEntered = false;
+  let arrayClosed = false;
+
+  function tryEmitHeadline() {
+    if (headlineEmitted) return;
+    const m = buffer.match(/"headline"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (!m) return;
+    try {
+      const value = JSON.parse(`"${m[1]}"`);
+      onEvent({ type: 'headline', value });
+      headlineEmitted = true;
+    } catch {
+      /* incomplete escape — wait for more */
+    }
+  }
+
+  function tryEnterArray() {
+    if (arrayEntered) return;
+    const idx = buffer.indexOf('"insights"', cursor);
+    if (idx === -1) return;
+    const bracket = buffer.indexOf('[', idx);
+    if (bracket === -1) return;
+    cursor = bracket + 1;
+    arrayEntered = true;
+  }
+
+  function tryEmitInsights() {
+    if (!arrayEntered || arrayClosed) return;
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    let objStart = -1;
+    let i = cursor;
+    for (; i < buffer.length; i++) {
+      const c = buffer[i];
+      if (inString) {
+        if (escape) { escape = false; continue; }
+        if (c === '\\') { escape = true; continue; }
+        if (c === '"') inString = false;
+        continue;
+      }
+      if (c === '"') { inString = true; continue; }
+      if (c === '{') {
+        if (depth === 0) objStart = i;
+        depth++;
+      } else if (c === '}') {
+        depth--;
+        if (depth === 0 && objStart !== -1) {
+          const objText = buffer.slice(objStart, i + 1);
+          try {
+            const parsed = JSON.parse(objText);
+            onEvent({ type: 'insight', value: parsed });
+          } catch {
+            /* malformed object — drop silently */
+          }
+          objStart = -1;
+          cursor = i + 1;
+        }
+      } else if (c === ']' && depth === 0) {
+        arrayClosed = true;
+        cursor = i + 1;
+        return;
+      }
+    }
+  }
+
+  return function feed(chunk) {
+    buffer += chunk;
+    tryEmitHeadline();
+    tryEnterArray();
+    tryEmitInsights();
+    if (!headlineEmitted) tryEmitHeadline(); // schema may emit headline after array
+  };
+}
+
+// Soft circuit breaker for Gemini 429s. Once we know we're rate-limited we
+// short-circuit subsequent calls with a structured `quota` SSE event instead of
+// burning RPM trying again. State is per-process; restarting the server clears it.
+const QUOTA_STATE = {
+  exhaustedUntil: null, // epoch ms
+  kind: null, // 'daily' | 'minute' | null
+};
+
+function checkQuota() {
+  if (!QUOTA_STATE.exhaustedUntil) return null;
+  if (Date.now() < QUOTA_STATE.exhaustedUntil) {
+    return {
+      kind: QUOTA_STATE.kind,
+      retryAfterSec: Math.max(
+        1,
+        Math.ceil((QUOTA_STATE.exhaustedUntil - Date.now()) / 1000)
+      ),
+    };
+  }
+  QUOTA_STATE.exhaustedUntil = null;
+  QUOTA_STATE.kind = null;
+  return null;
+}
+
+// Pull the meaningful pieces out of Gemini's 429 — kind (daily vs per-minute)
+// and the suggested retry delay. Gemini nests an extra JSON payload inside the
+// error message string, so we treat both wrappers as text.
+function parseQuotaError(error) {
+  const text = String(error?.message ?? error ?? '');
+  const status = Number(error?.status);
+  const looks429 =
+    status === 429 ||
+    /RESOURCE_EXHAUSTED|429|quota|rate.?limit/i.test(text);
+  if (!looks429) return null;
+
+  const isDaily = /PerDay|FreeTier.*Day|GenerateRequestsPerDay/i.test(text);
+  const kind = isDaily ? 'daily' : 'minute';
+
+  let retrySec = isDaily ? 3600 : 30;
+  const m =
+    text.match(/retry in ([\d.]+)s/i) ||
+    text.match(/retryDelay"\s*:\s*"([\d.]+)s"/i);
+  if (m) retrySec = Math.max(retrySec, Math.ceil(parseFloat(m[1])));
+  // Daily quota resets at the project's UTC midnight; hold for at least an hour
+  // before retrying so we don't slam the API for nothing.
+  if (isDaily) retrySec = Math.max(retrySec, 3600);
+
+  return { kind, retrySec };
+}
+
+app.post('/api/insights', async (req, res) => {
+  if (!genai) {
+    return res.status(500).json({ error: 'Gemini API key not configured' });
+  }
+  const summary = req.body?.summary;
+  if (!summary || typeof summary !== 'object') {
+    return res.status(400).json({ error: 'summary object required' });
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  const send = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  // Trip the breaker before calling Gemini if we already know we're out.
+  const tripped = checkQuota();
+  if (tripped) {
+    send('quota', tripped);
+    send('done', {});
+    res.end();
+    return;
+  }
+
+  const extractor = makeInsightsExtractor(evt => {
+    if (evt.type === 'headline') send('headline', { value: evt.value });
+    else if (evt.type === 'insight') send('insight', evt.value);
+  });
+
+  try {
+    const stream = await genai.models.generateContentStream({
       model: 'gemini-2.5-flash',
       contents: `נתח את הסיכום הבא והפק 4-6 תובנות בעברית:\n\n${JSON.stringify(summary, null, 2)}`,
       config: {
-        systemInstruction,
+        systemInstruction: INSIGHTS_SYSTEM_INSTRUCTION,
         responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            insights: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING },
-                  body: { type: Type.STRING },
-                  severity: {
-                    type: Type.STRING,
-                    enum: ['positive', 'neutral', 'warning', 'alert'],
-                  },
-                  iconHint: { type: Type.STRING },
-                  suggestion: { type: Type.STRING },
-                },
-                required: ['title', 'body', 'severity', 'iconHint'],
-              },
-            },
-            headline: { type: Type.STRING },
-          },
-          required: ['insights', 'headline'],
-        },
+        responseSchema: INSIGHTS_RESPONSE_SCHEMA,
       },
     });
 
-    const parsed = JSON.parse(response.text);
-    res.json({ ...parsed, usage: response.usageMetadata });
+    for await (const chunk of stream) {
+      const text = chunk?.text;
+      if (text) extractor(text);
+    }
+    send('done', {});
+    res.end();
   } catch (error) {
-    console.error('Insights error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate insights' });
+    const quota = parseQuotaError(error);
+    if (quota) {
+      QUOTA_STATE.exhaustedUntil = Date.now() + quota.retrySec * 1000;
+      QUOTA_STATE.kind = quota.kind;
+      console.warn(
+        `Gemini quota hit (${quota.kind}); cooling off for ${quota.retrySec}s`
+      );
+      send('quota', { kind: quota.kind, retryAfterSec: quota.retrySec });
+    } else {
+      console.error('Insights stream error:', error);
+      send('error', { message: error.message || 'Failed to generate insights' });
+    }
+    send('done', {});
+    res.end();
   }
 });
 

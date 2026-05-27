@@ -54,10 +54,18 @@ const RecurringPaymentsPage = ({ transactions }: RecurringPaymentsPageProps) => 
     [transactions, viewMode, selectedMonth, selectedYear]
   );
 
-  const recurrentPayments = useMemo(
-    () => findRecurrentPayments(transactions),
-    [transactions]
-  );
+  const recurrentPayments = useMemo(() => {
+    const all = findRecurrentPayments(transactions);
+    // Only show merchants that actually charged in the selected period —
+    // a merchant that was recurring earlier this year but has since stopped
+    // should not appear when viewing a later month.
+    if (viewMode === 'month') {
+      const key = `${selectedYear}-${selectedMonth + 1}`;
+      return all.filter(p => p.months.includes(key));
+    }
+    const yearPrefix = `${selectedYear}-`;
+    return all.filter(p => p.months.some(m => m.startsWith(yearPrefix)));
+  }, [transactions, viewMode, selectedMonth, selectedYear]);
 
   const paymentChanges = useMemo(
     () => findPaymentChanges(transactions, selectedMonth, selectedYear),

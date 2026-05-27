@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Loader2, Settings, FileSpreadsheet } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { RefreshCw, Loader2, Settings, FileSpreadsheet, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -248,7 +249,13 @@ const Upload = ({ onFilesSelected, isLoading, transactionCount, onSync }: Upload
                 )}
                 העלאת קובץ
               </Button>
-              <p className="text-xs text-muted-foreground text-center">CSV / Excel</p>
+              <Link
+                to="/data"
+                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center justify-center gap-1.5"
+              >
+                <Database className="h-3 w-3" />
+                ניהול נתונים
+              </Link>
               <input
                 ref={fileInputRef}
                 type="file"

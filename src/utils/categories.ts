@@ -11,18 +11,6 @@ export const CATEGORIES = {
   OTHER: 'אחר',
 } as const;
 
-// Categories explicitly excluded from the monthly budget (e.g. investments are
-// "moving money", not "spending money"). Treat investing as a separate axis so
-// it doesn't dilute the rent/food/etc allocation or skew progress bars.
-export const NON_BUDGET_CATEGORIES: ReadonlySet<string> = new Set([
-  'השקעות',
-]);
-
-export function isBudgetableCategory(category: string | undefined | null): boolean {
-  if (!category) return true;
-  return !NON_BUDGET_CATEGORIES.has(category);
-}
-
 // Keywords mapping. Order matters (specific before general if needed).
 // This is a basic starting list based on common Israeli merchants + specific requests.
 const KEYWORDS: Record<string, string[]> = {

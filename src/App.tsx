@@ -8,7 +8,6 @@ import { Sidebar } from "@/components/Sidebar";
 import Upload from "@/pages/Upload";
 import Monitor from "@/pages/Monitor";
 import RecurringPaymentsPage from "@/pages/RecurringPayments";
-import BudgetsPage from "@/pages/Budgets";
 import Statistics from "@/pages/Statistics";
 import DataManagement from "@/pages/DataManagement";
 import NotFound from "./pages/NotFound";
@@ -16,6 +15,8 @@ import { Transaction } from '@/types/transaction';
 import { parseMultipleCSVs } from '@/utils/csvParser';
 import { CATEGORIES } from '@/utils/categories';
 import { categorizeTransactionsWithAI } from '@/utils/ai';
+import { getLatestStatementPeriod, getStatisticsSummary } from '@/utils/statistics';
+import { useInsightsStore } from '@/hooks/useInsightsStore';
 import { toast } from 'sonner';
 
 const queryClient = new QueryClient();
@@ -44,7 +45,7 @@ const mergeUnique = (existing: Transaction[], incoming: Transaction[]) => {
 
 // Renames of category labels that have shipped before. When the user has
 // localStorage overrides pointing at an old label, transparently upgrade them
-// to the new label so the budget/dashboard don't show a stray "unknown" row.
+// to the new label so the dashboard doesn't show a stray "unknown" row.
 const CATEGORY_LABEL_MIGRATIONS: Record<string, string> = {
   'פיננסים וחיסכון': 'פיננסים והעברות',
 };
@@ -98,10 +99,30 @@ const App = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Lifted out of the Statistics page so the cache survives navigation and the
+  // boot-time prefetch can pre-warm the latest period before the user clicks in.
+  const insightsStore = useInsightsStore();
+
   // Tracks whether the background AI auto-labeler has already run this session.
   // Without this guard the effect would re-fire every time `transactions`
   // changes (e.g. when the user reclassifies a row) and spam the classify API.
   const autoLabeledRef = useRef(false);
+
+  // Tracks whether we've already kicked off the boot prefetch this session.
+  // The latest period is computed once data lands and only ever pre-warmed
+  // once — subsequent fetches require an explicit refresh.
+  const prefetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (prefetchedRef.current) return;
+    if (transactions.length === 0) return;
+    const latest = getLatestStatementPeriod(transactions);
+    if (!latest) return;
+    const summary = getStatisticsSummary(transactions, latest);
+    if (!summary) return;
+    prefetchedRef.current = true;
+    insightsStore.ensure(latest, summary);
+  }, [transactions, insightsStore]);
 
   // Run the localStorage migration once on mount, before any data loads.
   useEffect(() => {
@@ -295,12 +316,8 @@ const App = () => {
                     element={<RecurringPaymentsPage transactions={transactions} />}
                   />
                   <Route
-                    path="/budgets"
-                    element={<BudgetsPage transactions={transactions} />}
-                  />
-                  <Route
                     path="/statistics"
-                    element={<Statistics transactions={transactions} />}
+                    element={<Statistics transactions={transactions} insightsStore={insightsStore} />}
                   />
                   <Route path="/data" element={<DataManagement />} />
                   <Route path="*" element={<NotFound />} />

@@ -1,5 +1,5 @@
 import { Transaction } from '@/types/transaction';
-import { CATEGORIES, isBudgetableCategory } from './categories';
+import { CATEGORIES } from './categories';
 
 // ---------------------------------------------------------------------------
 // Statistics utilities. Pure functions over Transaction[]. All "current" /
@@ -118,6 +118,7 @@ export interface LifestyleStats {
 export interface AnomalyStats {
   largestTransaction: Transaction | null;
   largestZScore: number;
+  largestMean: number; // mean of recent expense amounts — baseline for the "X× the average" badge
   spikedCategories: { category: string; current: number; mean: number; z: number }[];
 }
 
@@ -708,6 +709,7 @@ export function getAnomalies(
   return {
     largestTransaction: largest,
     largestZScore: z,
+    largestMean: m,
     spikedCategories: spiked.sort((a, b) => b.z - a.z).slice(0, 3),
   };
 }

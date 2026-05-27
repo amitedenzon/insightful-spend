@@ -7,9 +7,7 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  Database,
   Repeat,
-  Target,
   Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,8 +27,6 @@ export function Sidebar({ className }: SidebarProps) {
     { to: '/monitor', label: 'מעקב הוצאות', icon: BarChart3 },
     { to: '/statistics', label: 'תובנות', icon: Sparkles },
     { to: '/recurring', label: 'תשלומים חוזרים', icon: Repeat },
-    { to: '/budgets', label: 'תקציבים', icon: Target },
-    { to: '/data', label: 'ניהול נתונים', icon: Database },
   ];
 
   const toggleTheme = () => {

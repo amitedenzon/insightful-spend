@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -23,6 +23,7 @@ import {
   Loader2,
   RefreshCw,
   Activity,
+  Hourglass,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,10 +43,12 @@ import {
   Period,
   StatisticsSummary,
 } from '@/utils/statistics';
-import { AIInsight, fetchAIInsights, InsightSeverity } from '@/utils/insights';
+import { AIInsight, InsightSeverity, QuotaError } from '@/utils/insights';
+import { UseInsightsStore } from '@/hooks/useInsightsStore';
 
 interface StatisticsProps {
   transactions: Transaction[];
+  insightsStore: UseInsightsStore;
 }
 
 const formatILS = (n: number) =>
@@ -65,7 +68,7 @@ const formatPct = (n: number, withSign = false) => {
 // Page
 // ---------------------------------------------------------------------------
 
-const Statistics = ({ transactions }: StatisticsProps) => {
+const Statistics = ({ transactions, insightsStore }: StatisticsProps) => {
   const navigate = useNavigate();
 
   const availableMonths = useMemo(
@@ -84,58 +87,27 @@ const Statistics = ({ transactions }: StatisticsProps) => {
     [transactions, selected]
   );
 
-  // AI insights cache keyed by period — switching back to a previously-loaded
-  // month re-uses the result instead of re-paying the API call.
-  const [insights, setInsights] = useState<AIInsight[]>([]);
-  const [headline, setHeadline] = useState<string>('');
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const cacheRef = useRef<Map<string, { insights: AIInsight[]; headline: string }>>(
-    new Map()
-  );
-  const lastFetchedKey = useRef<string | null>(null);
+  // No auto-fetch on period change — burning a request every time the user
+  // changes month adds up fast against the Gemini free-tier daily quota. The
+  // boot prefetch (App.tsx) pre-warms the latest period; everything else is
+  // explicit via the "טען תובנות" / refresh button.
+  const aiState = insightsStore.get(selected, summary);
+  const insights = aiState.insights;
+  const headline = aiState.headline;
+  const aiLoading = aiState.loading;
+  const aiError = aiState.error;
+  const quota = insightsStore.quota;
+  const hasNoContent = insights.length === 0 && headline.length === 0;
 
-  useEffect(() => {
-    if (!summary || !selected) return;
-    const key = `${selected.year}-${selected.month}`;
-    if (lastFetchedKey.current === key) return;
-    const cached = cacheRef.current.get(key);
-    if (cached) {
-      setInsights(cached.insights);
-      setHeadline(cached.headline);
-      setAiError(null);
-      lastFetchedKey.current = key;
-      return;
-    }
-    const controller = new AbortController();
-    lastFetchedKey.current = key;
-    setAiLoading(true);
-    setAiError(null);
-    fetchAIInsights(summary, controller.signal)
-      .then(r => {
-        cacheRef.current.set(key, r);
-        setInsights(r.insights);
-        setHeadline(r.headline);
-      })
-      .catch(e => {
-        if (controller.signal.aborted) return;
-        setAiError(e?.message || 'הפקת תובנות נכשלה');
-        setInsights([]);
-        setHeadline('');
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setAiLoading(false);
-      });
-    return () => controller.abort();
-  }, [summary, selected]);
-
-  const refreshAI = () => {
-    if (!selected) return;
-    const key = `${selected.year}-${selected.month}`;
-    cacheRef.current.delete(key);
-    lastFetchedKey.current = null;
-    setSelected({ ...selected });
+  // Explicit user action — bypass the auto-fetch suppression that `ensure`
+  // applies during a quota cooldown. If the API is still rate-limited the
+  // server short-circuits and the banner takes over.
+  const loadInsights = () => {
+    if (!selected || !summary) return;
+    insightsStore.refresh(selected, summary);
   };
+
+  const refreshAI = loadInsights;
 
   if (transactions.length === 0) {
     return (
@@ -168,6 +140,7 @@ const Statistics = ({ transactions }: StatisticsProps) => {
         onChange={setSelected}
         onRefreshAI={refreshAI}
         aiLoading={aiLoading}
+        aiDisabled={!!quota}
       />
 
       {/* Top row — change-vs-baseline on the left, AI narrative on the right.
@@ -180,6 +153,9 @@ const Statistics = ({ transactions }: StatisticsProps) => {
           insights={insights}
           loading={aiLoading}
           error={aiError}
+          quota={quota}
+          hasNoContent={hasNoContent}
+          onLoad={loadInsights}
           onRetry={refreshAI}
           className="lg:col-span-3"
         />
@@ -214,12 +190,14 @@ function PageHeader({
   onChange,
   onRefreshAI,
   aiLoading,
+  aiDisabled,
 }: {
   availableMonths: Period[];
   selected: Period;
   onChange: (p: Period) => void;
   onRefreshAI: () => void;
   aiLoading: boolean;
+  aiDisabled?: boolean;
 }) {
   const value = `${selected.year}-${selected.month}`;
   return (
@@ -235,8 +213,9 @@ function PageHeader({
           variant="ghost"
           size="sm"
           onClick={onRefreshAI}
-          disabled={aiLoading}
+          disabled={aiLoading || aiDisabled}
           className="gap-1.5 text-muted-foreground hover:text-foreground"
+          title={aiDisabled ? 'הגעת למכסת ה-AI היומית' : undefined}
         >
           <RefreshCw className={cn('h-3.5 w-3.5', aiLoading && 'animate-spin')} />
           רענן
@@ -455,6 +434,9 @@ function AINarrativeCard({
   insights,
   loading,
   error,
+  quota,
+  hasNoContent,
+  onLoad,
   onRetry,
   className,
 }: {
@@ -462,26 +444,28 @@ function AINarrativeCard({
   insights: AIInsight[];
   loading: boolean;
   error: string | null;
+  quota: QuotaError | null;
+  hasNoContent: boolean;
+  onLoad: () => void;
   onRetry: () => void;
   className?: string;
 }) {
+  // While streaming we may already have a headline and a few insights — render
+  // them immediately and keep a small "still arriving" hint at the bottom.
+  const hasAnyContent = headline.length > 0 || insights.length > 0;
+
   return (
     <Card
       title="תובנת AI"
       subtitle="ניתוח חכם של החודש"
-      icon={<Sparkles className="h-4 w-4 text-primary" />}
+      icon={<Sparkles className={cn('h-4 w-4 text-primary', loading && 'animate-pulse')} />}
       className={className}
     >
-      {loading ? (
-        <div className="space-y-2">
-          <div className="h-5 w-3/4 rounded bg-muted/60 animate-pulse" />
-          <div className="space-y-1.5 pt-2">
-            {[0, 1, 2].map(i => (
-              <div key={i} className="h-3 rounded bg-muted/40 animate-pulse" />
-            ))}
-          </div>
-        </div>
-      ) : error ? (
+      {/* Quota first — even when we have stale content from another period the
+          user should know the API is off-limits before they hit refresh. */}
+      {quota && hasNoContent ? (
+        <QuotaNotice quota={quota} />
+      ) : error && !hasAnyContent ? (
         <div className="flex items-start gap-3">
           <AlertTriangle className="h-4 w-4 text-spending shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
@@ -492,8 +476,28 @@ function AINarrativeCard({
             נסה שוב
           </Button>
         </div>
-      ) : insights.length === 0 ? (
-        <p className="text-sm text-muted-foreground">אין תובנות זמינות לחודש זה</p>
+      ) : !hasAnyContent && loading ? (
+        <div className="space-y-2">
+          <div className="h-5 w-3/4 rounded bg-muted/60 animate-pulse" />
+          <div className="space-y-1.5 pt-2">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="h-3 rounded bg-muted/40 animate-pulse" />
+            ))}
+          </div>
+        </div>
+      ) : !hasAnyContent ? (
+        <div className="flex items-start gap-3">
+          <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-foreground">לא נטענו תובנות לחודש זה</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              לחץ כדי להפיק ניתוח חדש (משתמש בבקשה אחת מהמכסה היומית).
+            </p>
+          </div>
+          <Button size="sm" variant="default" onClick={onLoad} disabled={!!quota}>
+            טען תובנות
+          </Button>
+        </div>
       ) : (
         <div className="space-y-3">
           {headline && (
@@ -502,10 +506,13 @@ function AINarrativeCard({
             </p>
           )}
           <ul className="space-y-2">
-            {insights.slice(0, 5).map((ins, i) => {
+            {insights.slice(0, 6).map((ins, i) => {
               const IconComp = ICON_MAP[ins.iconHint] || Info;
               return (
-                <li key={i} className="flex items-start gap-2.5">
+                <li
+                  key={`${i}-${ins.title}`}
+                  className="flex items-start gap-2.5 animate-slide-up"
+                >
                   <span
                     className={cn(
                       'w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-0.5',
@@ -523,11 +530,66 @@ function AINarrativeCard({
                 </li>
               );
             })}
+            {loading && (
+              <li className="flex items-center gap-2 pt-1">
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                <span className="text-[11px] text-muted-foreground">עוד תובנות בדרך…</span>
+              </li>
+            )}
           </ul>
+          {error && hasAnyContent && (
+            <p className="text-[11px] text-spending">{error}</p>
+          )}
+          {quota && hasAnyContent && (
+            <p className="text-[11px] text-warning flex items-center gap-1">
+              <Hourglass className="h-3 w-3" />
+              {quota.kind === 'daily'
+                ? 'נגמרה מכסת ה-AI היומית — מציג תוצאה שמורה'
+                : 'מגבלת RPM זמנית — נסה שוב עוד מעט'}
+            </p>
+          )}
         </div>
       )}
     </Card>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Quota notice — friendly Hebrew explanation of Gemini's free-tier 429s.
+// `daily` is the brick wall (20/day on free tier — resets next UTC midnight).
+// `minute` is the per-RPM bump and clears within ~30s.
+// ---------------------------------------------------------------------------
+
+function QuotaNotice({ quota }: { quota: QuotaError }) {
+  const isDaily = quota.kind === 'daily';
+  const wait = formatWaitTime(quota.retryAfterSec, isDaily);
+
+  return (
+    <div className="flex items-start gap-3 rounded-md bg-warning/10 border border-warning/30 p-3">
+      <Hourglass className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0 space-y-0.5">
+        <p className="text-sm font-medium text-foreground">
+          {isDaily ? 'נגמרה מכסת ה-AI היומית' : 'הפסקה קצרה לפני בקשה נוספת'}
+        </p>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          {isDaily
+            ? `הגעת ל-20 הבקשות היומיות של Gemini בתוכנית החינמית. אפשר לנסות שוב בעוד ${wait}.`
+            : `הגענו למגבלת הבקשות לדקה. נסה שוב בעוד ${wait}.`}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function formatWaitTime(seconds: number, isDaily: boolean): string {
+  if (seconds < 60) return `${Math.max(1, Math.round(seconds))} שניות`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} דקות`;
+  const hours = Math.round(seconds / 3600);
+  if (isDaily || hours >= 1) {
+    return hours === 1 ? 'שעה' : `${hours} שעות`;
+  }
+  return `${minutes} דקות`;
 }
 
 // ---------------------------------------------------------------------------
@@ -693,6 +755,10 @@ function AnomaliesCard({ summary }: { summary: StatisticsSummary }) {
   const big = anomalies.largestTransaction;
   const hasSpike = anomalies.spikedCategories.length > 0;
   const hasBigOutlier = big && anomalies.largestZScore > 2;
+  const bigRatio = big && anomalies.largestMean > 0
+    ? big.chargeAmount / anomalies.largestMean
+    : 0;
+  const formatRatio = (r: number) => (r >= 10 ? r.toFixed(0) : r.toFixed(1));
 
   return (
     <Card
@@ -711,10 +777,10 @@ function AnomaliesCard({ summary }: { summary: StatisticsSummary }) {
                 <p className="text-xl font-semibold tabular-nums text-foreground">
                   {formatILS(big.chargeAmount)}
                 </p>
-                {hasBigOutlier && (
+                {hasBigOutlier && bigRatio > 1 && (
                   <Badge className="text-[10px] px-1.5 py-0 h-5 bg-warning/15 text-warning hover:bg-warning/20 gap-1">
                     <Flame className="h-2.5 w-2.5" />
-                    {anomalies.largestZScore.toFixed(1)}σ מעל הממוצע
+                    פי {formatRatio(bigRatio)} מהממוצע
                   </Badge>
                 )}
               </div>
@@ -736,7 +802,7 @@ function AnomaliesCard({ summary }: { summary: StatisticsSummary }) {
                       <div className="flex items-baseline justify-between gap-2">
                         <p className="text-sm font-medium text-foreground break-words">{c.category}</p>
                         <p className="text-xs text-warning tabular-nums shrink-0">
-                          {c.z.toFixed(1)}σ
+                          {c.mean > 0 ? `פי ${formatRatio(c.current / c.mean)}` : ''}
                         </p>
                       </div>
                       <p className="text-[11px] text-muted-foreground tabular-nums">
